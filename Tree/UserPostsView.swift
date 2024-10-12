@@ -36,9 +36,13 @@ struct UserPostsView: View {
 
     // Fetch the username based on the userId
     func fetchUsername() {
+        print("Fetching username for userId: \(userId)")  // Log the userId being queried
+        
         Firestore.firestore().collection("users").document(userId).getDocument { document, error in
             if let document = document, document.exists {
-                if let data = document.data(), let fetchedUsername = data["username"] as? String {
+                let data = document.data()
+                print("Fetched username data: \(String(describing: data))")  // Log the fetched username data
+                if let data = data, let fetchedUsername = data["username"] as? String {
                     DispatchQueue.main.async {
                         self.username = fetchedUsername // Update the username state
                     }
@@ -49,33 +53,46 @@ struct UserPostsView: View {
         }
     }
 
-    // Fetch posts by the userId
     func fetchUserPosts() {
+        print("Fetching posts for userId: \(userId)")  // Log userId for verification
+
         Firestore.firestore().collection("posts")
             .whereField("userId", isEqualTo: userId)
             .getDocuments { (snapshot, error) in
-                guard let documents = snapshot?.documents else { return }
+                guard let documents = snapshot?.documents else {
+                    print("No documents found or error: \(String(describing: error))")
+                    return
+                }
 
                 DispatchQueue.main.async {
                     self.userPosts = documents.compactMap { document in
                         let data = document.data()
+                        print("Document data: \(data)")  // Log each document data for debugging
+                        
                         guard let userId = data["userId"] as? String,
-                              let username = data["username"] as? String,
                               let imageUrl = data["imageUrl"] as? String,
-                              let description = data["description"] as? String,
                               let latitude = data["latitude"] as? Double,
                               let longitude = data["longitude"] as? Double,
                               let timestamp = data["timestamp"] as? Timestamp else {
                             return nil
                         }
+                        
+                        // Provide a default value if the description is missing
+                        let description = data["description"] as? String ?? ""
+
+                        // Use the fetched username from `fetchUsername()` function
                         return Post(id: document.documentID,
                                     userId: userId,
-                                    username: username,
+                                    username: self.username, // Use the already fetched username
                                     imageUrl: imageUrl,
-                                    description: description,
+                                    description: description, // Handle missing description
                                     latitude: latitude,
                                     longitude: longitude,
                                     timestamp: timestamp)
+                    }
+                    
+                    if self.userPosts.isEmpty {
+                        print("No posts found for this user")
                     }
                 }
             }
