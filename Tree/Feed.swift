@@ -2,13 +2,12 @@ import SwiftUI
 import FirebaseFirestore
 import CoreLocation
 
-// Define the Post struct with username and description
 struct Post: Identifiable {
     var id: String
     var userId: String
     var username: String
     var imageUrl: String
-    var description: String
+    var locationName: String // The location name entered by the user
     var latitude: Double
     var longitude: Double
     var timestamp: Timestamp
@@ -17,11 +16,15 @@ struct Post: Identifiable {
 struct Feed: View {
     @ObservedObject var locationManager = LocationManager()
     @State private var posts: [Post] = []
+    @State private var showUserPostsView = false
+    @State private var selectedUserId: String = ""
 
     var body: some View {
-        NavigationView {  // Wrap the feed in a NavigationView to enable navigation
+        NavigationView {
             VStack {
-                if let location = locationManager.location {
+                if posts.isEmpty {
+                    Text("No posts to show.")
+                } else {
                     List(posts) { post in
                         VStack(alignment: .leading, spacing: 10) {
                             // NavigationLink to user's profile view
@@ -31,11 +34,9 @@ struct Feed: View {
                                     .foregroundColor(.blue) // Make the username clickable
                             }
 
-                            if !post.description.isEmpty {
-                                Text(post.description)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
+                            Text("Location: \(post.locationName)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
 
                             AsyncImage(url: URL(string: post.imageUrl)) { image in
                                 image
@@ -49,84 +50,86 @@ struct Feed: View {
                         }
                         .padding(.vertical, 10)
                     }
-                    .onAppear {
-                        fetchNearbyPosts(location: location)
-                    }
-                } else {
-                    Text("Getting your location...")
-                        .padding()
                 }
             }
             .onAppear {
-                // Ensure posts are fetched when the view appears
-                if posts.isEmpty {
-                    if let location = locationManager.location {
-                        fetchNearbyPosts(location: location)
-                    }
-                }
+                fetchPosts()
             }
             .navigationTitle("Nearby Posts") // Set a title for the navigation bar
         }
     }
 
-    // Fetch posts and their corresponding usernames from Firestore
-    func fetchNearbyPosts(location: CLLocation) {
-        let maxDistance: Double = 10000 // 10 km radius
+    // Fetch posts first
+    func fetchPosts() {
+        print("Fetching posts from Firestore...")
+
         Firestore.firestore().collection("posts").getDocuments { (snapshot, error) in
-            guard let documents = snapshot?.documents else {
-                print("Error fetching documents: \(String(describing: error))")
+            if let error = error {
+                print("Error fetching documents: \(error)")
                 return
             }
 
-            var fetchedPosts: [Post] = [] // Temporarily hold posts
+            guard let documents = snapshot?.documents else {
+                print("No documents found")
+                return
+            }
 
-            let dispatchGroup = DispatchGroup() // To synchronize the asynchronous tasks
+            print("Found \(documents.count) documents")
+
+            var fetchedPosts: [Post] = []
 
             for document in documents {
                 let data = document.data()
+                print("Document data: \(data)")  // Log each document data for debugging
+
                 guard let userId = data["userId"] as? String,
                       let imageUrl = data["imageUrl"] as? String,
                       let latitude = data["latitude"] as? Double,
                       let longitude = data["longitude"] as? Double,
                       let timestamp = data["timestamp"] as? Timestamp else {
-                    continue
+                    print("Missing data in document: \(document.documentID)")
+                    continue // Skip this document if critical data is missing
                 }
 
-                // Calculate the distance
-                let postLocation = CLLocation(latitude: latitude, longitude: longitude)
-                let distance = location.distance(from: postLocation)
+                // Provide default value for missing location name
+                let locationName = data["locationName"] as? String ?? "Unknown location"
 
-                if distance <= maxDistance {
-                    dispatchGroup.enter() // Mark the start of an asynchronous task
+                // Create a Post object with "Unknown" username initially
+                let post = Post(id: document.documentID,
+                                userId: userId,
+                                username: "Unknown", // Default username
+                                imageUrl: imageUrl,
+                                locationName: locationName,
+                                latitude: latitude,
+                                longitude: longitude,
+                                timestamp: timestamp)
 
-                    // Fetch the username from the 'users' collection
-                    Firestore.firestore().collection("users").document(userId).getDocument { (userSnapshot, error) in
-                        var username = "Unknown"
-                        if let userData = userSnapshot?.data() {
-                            username = userData["username"] as? String ?? "Unknown"
-                        }
-
-                        let description = data["description"] as? String ?? ""
-
-                        // Create the post only after fetching the username
-                        let post = Post(id: document.documentID,
-                                        userId: userId,
-                                        username: username,
-                                        imageUrl: imageUrl,
-                                        description: description,
-                                        latitude: latitude,
-                                        longitude: longitude,
-                                        timestamp: timestamp)
-
-                        fetchedPosts.append(post)
-                        dispatchGroup.leave() // Mark the end of this asynchronous task
-                    }
-                }
+                fetchedPosts.append(post)
             }
 
-            // When all asynchronous tasks are done, update the UI
-            dispatchGroup.notify(queue: .main) {
+            print("Fetched posts: \(fetchedPosts.count)")
+
+            DispatchQueue.main.async {
                 self.posts = fetchedPosts
+                fetchUsernames(for: fetchedPosts)
+            }
+        }
+    }
+
+    // Asynchronously fetch usernames after posts are loaded
+    func fetchUsernames(for posts: [Post]) {
+        for (index, post) in posts.enumerated() {
+            Firestore.firestore().collection("users").document(post.userId).getDocument { (userSnapshot, error) in
+                guard let userData = userSnapshot?.data(), let username = userData["username"] as? String else {
+                    print("Failed to fetch username for userId: \(post.userId)")
+                    return
+                }
+
+                // Update the username in the post
+                DispatchQueue.main.async {
+                    self.posts[index].username = username
+                    print("Updated username for post \(post.id): \(username)")
+                }
             }
         }
     }
