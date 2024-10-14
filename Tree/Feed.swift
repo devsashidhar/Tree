@@ -1,6 +1,7 @@
 import SwiftUI
 import FirebaseFirestore
 import CoreLocation
+import Kingfisher
 
 struct Post: Identifiable {
     var id: String
@@ -16,53 +17,59 @@ struct Post: Identifiable {
 struct Feed: View {
     @ObservedObject var locationManager = LocationManager()
     @State private var posts: [Post] = []
+    @State private var users: [String: String] = [:] // Cache usernames by userId
     @State private var showUserPostsView = false
     @State private var selectedUserId: String = ""
 
+    init() {
+        // Customize Navigation Bar background and title text color
+        let navBarAppearance = UINavigationBarAppearance()
+        navBarAppearance.backgroundColor = UIColor.black
+        navBarAppearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+        navBarAppearance.titleTextAttributes = [.foregroundColor: UIColor.white]
+        UINavigationBar.appearance().standardAppearance = navBarAppearance
+        UINavigationBar.appearance().scrollEdgeAppearance = navBarAppearance
+
+        // Customize Tab Bar background color
+        let tabBarAppearance = UITabBarAppearance()
+        tabBarAppearance.backgroundColor = UIColor.black
+        UITabBar.appearance().standardAppearance = tabBarAppearance
+        UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
+    }
+
     var body: some View {
         NavigationView {
-            VStack {
-                if posts.isEmpty {
-                    Text("No posts to show.")
-                } else {
-                    List(posts) { post in
-                        VStack(alignment: .leading, spacing: 10) {
-                            // NavigationLink to user's profile view
-                            NavigationLink(destination: UserPostsView(userId: post.userId)) {
-                                Text("Posted by: \(post.username)")
-                                    .font(.caption)
-                                    .foregroundColor(.blue) // Make the username clickable
-                            }
-
-                            Text("Location: \(post.locationName)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-
-                            AsyncImage(url: URL(string: post.imageUrl)) { image in
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                            } placeholder: {
-                                ProgressView()
-                            }
-                            .frame(width: 300, height: 300)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-                        .padding(.vertical, 10)
+            List(posts) { post in
+                VStack(alignment: .leading, spacing: 10) {
+                    NavigationLink(destination: UserPostsView(userId: post.userId)) {
+                        Text("Posted by: \(users[post.userId] ?? "Unknown")")
+                            .font(.caption)
+                            .foregroundColor(.blue)
                     }
+
+                    Text("Location: \(post.locationName)")
+                        .font(.caption)
+                        .foregroundColor(.white)
+
+                    KFImage(URL(string: post.imageUrl))
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
+                .listRowBackground(Color.black) // Background for each post
+                .padding(.vertical, 5)
             }
+            .listStyle(PlainListStyle())
             .onAppear {
                 fetchPosts()
             }
-            .navigationTitle("Nearby Posts") // Set a title for the navigation bar
+            .navigationTitle("Nearby Posts")
         }
+        .background(Color.black.edgesIgnoringSafeArea(.all)) // Background for the whole view
     }
 
-    // Fetch posts first
     func fetchPosts() {
-        print("Fetching posts from Firestore...")
-
         Firestore.firestore().collection("posts").getDocuments { (snapshot, error) in
             if let error = error {
                 print("Error fetching documents: \(error)")
@@ -74,30 +81,24 @@ struct Feed: View {
                 return
             }
 
-            print("Found \(documents.count) documents")
-
             var fetchedPosts: [Post] = []
 
             for document in documents {
                 let data = document.data()
-                print("Document data: \(data)")  // Log each document data for debugging
 
                 guard let userId = data["userId"] as? String,
                       let imageUrl = data["imageUrl"] as? String,
                       let latitude = data["latitude"] as? Double,
                       let longitude = data["longitude"] as? Double,
                       let timestamp = data["timestamp"] as? Timestamp else {
-                    print("Missing data in document: \(document.documentID)")
-                    continue // Skip this document if critical data is missing
+                    continue
                 }
 
-                // Provide default value for missing location name
                 let locationName = data["locationName"] as? String ?? "Unknown location"
 
-                // Create a Post object with "Unknown" username initially
                 let post = Post(id: document.documentID,
                                 userId: userId,
-                                username: "Unknown", // Default username
+                                username: "Unknown",
                                 imageUrl: imageUrl,
                                 locationName: locationName,
                                 latitude: latitude,
@@ -107,8 +108,6 @@ struct Feed: View {
                 fetchedPosts.append(post)
             }
 
-            print("Fetched posts: \(fetchedPosts.count)")
-
             DispatchQueue.main.async {
                 self.posts = fetchedPosts
                 fetchUsernames(for: fetchedPosts)
@@ -116,21 +115,27 @@ struct Feed: View {
         }
     }
 
-    // Asynchronously fetch usernames after posts are loaded
     func fetchUsernames(for posts: [Post]) {
-        for (index, post) in posts.enumerated() {
-            Firestore.firestore().collection("users").document(post.userId).getDocument { (userSnapshot, error) in
-                guard let userData = userSnapshot?.data(), let username = userData["username"] as? String else {
-                    print("Failed to fetch username for userId: \(post.userId)")
+        let userIds = Set(posts.map { $0.userId })
+        Firestore.firestore().collection("users")
+            .whereField(FieldPath.documentID(), in: Array(userIds))
+            .getDocuments { (snapshot, error) in
+                guard let documents = snapshot?.documents else {
+                    print("Error fetching user documents: \(String(describing: error))")
                     return
                 }
 
-                // Update the username in the post
+                var fetchedUsers: [String: String] = [:]
+                for document in documents {
+                    let data = document.data()
+                    if let username = data["username"] as? String {
+                        fetchedUsers[document.documentID] = username
+                    }
+                }
+
                 DispatchQueue.main.async {
-                    self.posts[index].username = username
-                    print("Updated username for post \(post.id): \(username)")
+                    self.users = fetchedUsers
                 }
             }
-        }
     }
 }
