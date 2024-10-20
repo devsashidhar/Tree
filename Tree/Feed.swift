@@ -18,45 +18,74 @@ struct Post: Identifiable {
 struct Feed: View {
     @ObservedObject var locationManager = LocationManager()
     @State private var posts: [Post] = []
-    @State private var users: [String: String] = [:]
-    @State private var isRefreshing = false // Track if refresh is in progress
+    @State private var users: [String: String] = [:] // Cache usernames by userId
+    @State private var isRefreshing = false
+    @State private var allPostsViewed = false // New state to track if all posts are viewed
 
     var body: some View {
         NavigationView {
-            List(posts) { post in
-                VStack(alignment: .leading, spacing: 10) {
-                    NavigationLink(destination: UserPostsView(userId: post.userId)) {
-                        Text("Posted by: \(users[post.userId] ?? "Unknown")")
-                            .font(.caption)
-                            .foregroundColor(.blue)
+            ZStack {
+                Color.black.edgesIgnoringSafeArea(.all) // Ensure the background is always black
+
+                if posts.isEmpty && allPostsViewed {
+                    // Show the "You're all caught up!" message only when all posts are viewed
+                    VStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 80, height: 80)
+                            .foregroundColor(.green)
+                            .shadow(radius: 10)
+
+                        Text("You're all caught up!")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding()
+
+                        Text("No more nature posts to view at the moment")
+                            .font(.system(size: 16))
+                            .foregroundColor(.gray)
+                            .padding(.top, -10)
                     }
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.5), value: posts.isEmpty)
+                } else {
+                    // Show the list of posts
+                    List(posts) { post in
+                        VStack(alignment: .leading, spacing: 10) {
+                            NavigationLink(destination: UserPostsView(userId: post.userId)) {
+                                Text("Posted by: \(users[post.userId] ?? "Unknown")")
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                            }
 
-                    Text("Location: \(post.locationName)")
-                        .font(.caption)
-                        .foregroundColor(.white)
+                            Text("Location: \(post.locationName)")
+                                .font(.caption)
+                                .foregroundColor(.white)
 
-                    KFImage(URL(string: post.imageUrl))
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                            KFImage(URL(string: post.imageUrl))
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .listRowBackground(Color.black)
+                        .padding(.vertical, 5)
+                        .onAppear {
+                            markPostAsViewed(post) // Mark the post as viewed when it appears
+                        }
+                    }
+                    .listStyle(PlainListStyle())
+                    .refreshable {
+                        refreshFeed()
+                    }
                 }
-                .listRowBackground(Color.black)
-                .padding(.vertical, 5)
-                .onAppear {
-                    markPostAsViewed(post)
-                }
-            }
-            .listStyle(PlainListStyle())
-            .refreshable {
-                refreshFeed()
-            }
-            .onAppear {
-                fetchPosts() // Fetch posts on first appearance
             }
             .navigationTitle("Nearby Posts")
+            .onAppear {
+                fetchPosts()
+            }
         }
-        .background(Color.black.edgesIgnoringSafeArea(.all))
     }
 
     // Pull-to-refresh functionality
@@ -117,6 +146,7 @@ struct Feed: View {
 
                     guard let documents = snapshot?.documents else {
                         print("No documents found")
+                        allPostsViewed = true // No more unviewed posts found
                         return
                     }
 
@@ -149,6 +179,7 @@ struct Feed: View {
 
                     DispatchQueue.main.async {
                         self.posts = fetchedPosts
+                        self.allPostsViewed = fetchedPosts.isEmpty // Check if no new posts were fetched
                         self.fetchUsernames(for: fetchedPosts)
                     }
                 }
@@ -164,6 +195,7 @@ struct Feed: View {
 
             guard let documents = snapshot?.documents else {
                 print("No documents found")
+                allPostsViewed = true // No more unviewed posts found
                 return
             }
 
@@ -199,11 +231,11 @@ struct Feed: View {
 
             DispatchQueue.main.async {
                 self.posts = fetchedPosts
+                self.allPostsViewed = fetchedPosts.isEmpty // Check if no new posts were fetched
                 self.fetchUsernames(for: fetchedPosts)
             }
         }
     }
-
 
     // Fetch all posts (for new users or users without viewedPosts)
     func fetchAllPosts() {
@@ -216,6 +248,7 @@ struct Feed: View {
 
             guard let documents = snapshot?.documents else {
                 print("No documents found")
+                allPostsViewed = true // No more posts found
                 return
             }
 
@@ -248,6 +281,7 @@ struct Feed: View {
 
             DispatchQueue.main.async {
                 self.posts = fetchedPosts
+                self.allPostsViewed = fetchedPosts.isEmpty // Check if no posts were fetched
                 self.fetchUsernames(for: fetchedPosts)
             }
         }
