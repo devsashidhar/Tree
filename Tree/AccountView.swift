@@ -34,6 +34,18 @@ struct AccountView: View {
                         .scaleEffect(2) // Make the spinner larger
                 } else {
                     VStack {
+                        // Add title and subtitle here
+                        VStack {
+                            Text("Your Gallery")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.top, 10) // Add some top padding
+
+                            Text("Tap to expand each image")
+                                .foregroundColor(.gray)
+                                .font(.system(size: 16))
+                                .padding(.bottom, 10)
+                        }
                         if userPosts.isEmpty {
                             // Show a message prompting the user to upload pictures
                             VStack {

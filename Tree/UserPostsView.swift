@@ -1,47 +1,94 @@
 import SwiftUI
 import FirebaseFirestore
+import Kingfisher
+
 
 struct UserPostsView: View {
     var userId: String
     @State private var userPosts: [Post] = []
     @State private var username: String = "Unknown" // Default username value
+    @State private var selectedImage: FullScreenImage? = nil // For full-screen image display
+
+    let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ] // 2-column grid layout
 
     var body: some View {
-        VStack {
+        ZStack {
+            Color.black.ignoresSafeArea() // Set background to black
+            VStack(spacing: 10) {
+                // Title and subtitle
+                VStack {
+                    Text("\(username)'s Gallery")
+                        .foregroundColor(.white)
+                        .font(.system(size: 24, weight: .bold)) // Large title
+                        .padding(.top, 20)
+
+                    Text("Tap to expand each image")
+                        .foregroundColor(.gray)
+                        .font(.system(size: 16)) // Smaller subtitle
+                        .padding(.bottom, 10)
+                }
             if userPosts.isEmpty {
                 Text("No posts available for this user.")
+                    .foregroundColor(.gray)
+                    .font(.system(size: 18, weight: .medium))
                     .padding()
             } else {
-                List(userPosts) { post in
-                    VStack {
-                        AsyncImage(url: URL(string: post.imageUrl)) { image in
-                            image
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 10) {
+                        ForEach(userPosts) { post in
+                            KFImage(URL(string: post.imageUrl))
                                 .resizable()
                                 .scaledToFill()
-                        } placeholder: {
-                            ProgressView()
+                                .frame(width: UIScreen.main.bounds.width / 2 - 15, height: UIScreen.main.bounds.width / 2 - 15)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .onTapGesture {
+                                    selectedImage = FullScreenImage(url: post.imageUrl)
+                                }
                         }
-                        .frame(width: 300, height: 300)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        
-                        // Show location name
-                        Text("Location: \(post.locationName)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
                     }
+                    .padding()
+                }
                 }
             }
         }
-        .navigationTitle("Posts by \(username)") // Use the fetched username
+        .navigationTitle("Posts by \(username)") // Show the user's name in the title
         .onAppear {
-            fetchUserPosts() // Fetch posts first, then the username
+            fetchUserPosts()
+        }
+        .fullScreenCover(item: $selectedImage) { fullScreenImage in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                KFImage(URL(string: fullScreenImage.url))
+                    .resizable()
+                    .scaledToFit()
+
+                VStack {
+                    HStack {
+                        Button(action: {
+                            selectedImage = nil
+                        }) {
+                            Image(systemName: "arrow.left")
+                                .foregroundColor(.white)
+                                .padding()
+                                .background(Circle().fill(Color.black.opacity(0.7)))
+                        }
+                        .padding(.leading, 20)
+                        .padding(.top, 40)
+
+                        Spacer()
+                    }
+                    Spacer()
+                }
+            }
         }
     }
 
-    // Fetch posts by the userId
+    // Fetch posts for the given userId
     func fetchUserPosts() {
-        print("Fetching posts for userId: \(userId)")
-
         Firestore.firestore().collection("posts")
             .whereField("userId", isEqualTo: userId)
             .getDocuments { (snapshot, error) in
@@ -49,7 +96,7 @@ struct UserPostsView: View {
                     print("Error fetching posts: \(error.localizedDescription)")
                     return
                 }
-                
+
                 guard let documents = snapshot?.documents else {
                     print("No posts found for userId: \(userId)")
                     return
@@ -57,56 +104,38 @@ struct UserPostsView: View {
 
                 DispatchQueue.main.async {
                     var fetchedPosts: [Post] = []
-
                     for document in documents {
                         let data = document.data()
-                        print("Post data for userId \(userId): \(data)")  // Log each document data for debugging
-                        
-                        guard let imageUrl = data["imageUrl"] as? String else {
-                            print("Skipping post due to missing imageUrl: \(document.documentID)")
-                            continue // Skip this document if critical data like imageUrl is missing
-                        }
-
-                        // Handle missing location name and provide a default value
+                        guard let imageUrl = data["imageUrl"] as? String else { continue }
                         let locationName = data["locationName"] as? String ?? "Unknown Location"
-                        
-                        // Handle other fields, providing default values where needed
                         let latitude = data["latitude"] as? Double ?? 0.0
                         let longitude = data["longitude"] as? Double ?? 0.0
                         let timestamp = data["timestamp"] as? Timestamp ?? Timestamp(date: Date())
-
-                        // Create a Post object without username initially
+                        
                         let post = Post(id: document.documentID,
                                         userId: userId,
-                                        username: "Unknown", // Placeholder for now
+                                        username: "Unknown",
                                         imageUrl: imageUrl,
                                         locationName: locationName,
                                         latitude: latitude,
                                         longitude: longitude,
                                         timestamp: timestamp)
-
                         fetchedPosts.append(post)
                     }
-
                     self.userPosts = fetchedPosts
-                    print("Fetched posts count: \(self.userPosts.count)")
-                    fetchUsername() // Fetch the username after fetching posts
+                    fetchUsername()
                 }
             }
     }
 
-    // Fetch the username based on the userId
+    // Fetch the username of the post owner
     func fetchUsername() {
-        print("Fetching username for userId: \(userId)")
         Firestore.firestore().collection("users").document(userId).getDocument { document, error in
             if let document = document, document.exists {
                 let data = document.data()
-                print("Fetched username data: \(String(describing: data))")
-
                 if let fetchedUsername = data?["username"] as? String {
                     DispatchQueue.main.async {
-                        self.username = fetchedUsername // Update the username state
-                        // Update the username for the posts
+                        self.username = fetchedUsername
                         self.userPosts = self.userPosts.map { post in
                             var updatedPost = post
                             updatedPost.username = fetchedUsername
@@ -114,12 +143,10 @@ struct UserPostsView: View {
                         }
                     }
                 } else {
-                    print("Username not found for userId: \(userId)")
-                    self.username = "Unknown" // Fallback if username is missing
+                    self.username = "Unknown"
                 }
             } else {
-                print("Error fetching username or document does not exist: \(String(describing: error))")
-                self.username = "Unknown" // Fallback if Firestore fails
+                self.username = "Unknown"
             }
         }
     }
