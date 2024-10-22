@@ -16,19 +16,6 @@ struct ChatView: View {
     var body: some View {
         VStack {
             // Custom back button at the top
-            HStack {
-                Button(action: {
-                    // Dismiss the ChatView and return to the Feed
-                    self.presentationMode.wrappedValue.dismiss()
-                }) {
-                    Image(systemName: "chevron.left")
-                        .foregroundColor(.blue)
-                        .imageScale(.large)
-                        .padding()
-                }
-
-                Spacer()
-            }
             if isLoading {
                 ProgressView("Loading messages...")
             } else {
