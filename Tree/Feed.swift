@@ -139,10 +139,9 @@ struct Feed: View {
                                             .scaledToFill()
                                             .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
                                             .clipShape(RoundedRectangle(cornerRadius: 10))
-                                        // Messaging Button
-                                        Button(action: {
-                                            initiateChat(with: post.userId)
-                                        }) {
+                                        // Messaging Button (Use NavigationLink instead of Button)
+                                        NavigationLink(
+                                            destination: ChatView(chatId: "someChatId", currentUserId: "yourCurrentUserId", receiverId: post.userId)) {
                                             HStack(spacing: 4) {
                                                 Text("Message Artist")
                                                     .font(.system(size: 8, weight: .semibold)) // Smaller text size

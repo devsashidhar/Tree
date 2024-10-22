@@ -60,6 +60,7 @@ struct ChatView: View {
             fetchMessages()
             markMessagesAsRead(for: messages) // This ensures messages are marked as read.
         }
+        .navigationBarTitle("Chat", displayMode: .inline) // This ensures there's a navigation bar title
     }
 
     private func fetchMessages() {
