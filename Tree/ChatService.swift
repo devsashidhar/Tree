@@ -36,38 +36,45 @@ class ChatService {
         }
 
     func getOrCreateChat(forUsers userIds: [String], completion: @escaping (Result<String, Error>) -> Void) {
-            let chatsRef = Firestore.firestore().collection("chats")
+        let chatsRef = Firestore.firestore().collection("chats")
 
-            // Check if a chat already exists between the two users
-            chatsRef
-                .whereField("userIds", arrayContainsAny: userIds)
-                .getDocuments { (snapshot, error) in
-                    if let error = error {
-                        completion(.failure(error))
-                        return
-                    }
+        // Check if a chat already exists between the two users
+        chatsRef
+            .whereField("userIds", arrayContainsAny: userIds) // This checks if any of the userIds match
+            .getDocuments { (snapshot, error) in
+                if let error = error {
+                    completion(.failure(error))
+                    return
+                }
 
-                    // If chat exists, return the first chat's ID
-                    if let document = snapshot?.documents.first {
-                        completion(.success(document.documentID))
-                    } else {
-                        // Otherwise, create a new chat
-                        let newChat = Chat(userIds: userIds, createdAt: Timestamp(), lastMessageTimestamp: Timestamp())
-                        var ref: DocumentReference? = nil
-                        ref = chatsRef.addDocument(data: [
-                            "userIds": userIds,
-                            "createdAt": newChat.createdAt,
-                            "lastMessageTimestamp": newChat.lastMessageTimestamp
-                        ]) { error in
-                            if let error = error {
-                                completion(.failure(error))
-                            } else {
-                                completion(.success(ref!.documentID))
-                            }
+                // Iterate through all found chats and check if they contain the exact same userIds
+                if let documents = snapshot?.documents {
+                    for document in documents {
+                        let existingUserIds = document.data()["userIds"] as? [String] ?? []
+                        if Set(existingUserIds) == Set(userIds) { // Check if it's the exact same set of userIds
+                            completion(.success(document.documentID))
+                            return
                         }
                     }
                 }
-        }
+
+                // If no chat exists, create a new chat with both userIds
+                let newChat = Chat(userIds: userIds, createdAt: Timestamp(), lastMessageTimestamp: Timestamp())
+                var ref: DocumentReference? = nil
+                ref = chatsRef.addDocument(data: [
+                    "userIds": userIds, // Ensure both user IDs are added here
+                    "createdAt": newChat.createdAt,
+                    "lastMessageTimestamp": newChat.lastMessageTimestamp
+                ]) { error in
+                    if let error = error {
+                        completion(.failure(error))
+                    } else {
+                        completion(.success(ref!.documentID))
+                    }
+                }
+            }
+    }
+
     // Create a new chat
     func createChat(withUserIds userIds: [String], completion: @escaping (Result<Chat, Error>) -> Void) {
         let chatRef = db.collection("chats").document()
@@ -127,31 +134,34 @@ class ChatService {
     }
 
 
-    // Send a message in a chat
     func sendMessage(inChat chatId: String, senderId: String, receiverId: String, text: String, completion: @escaping (Result<Message, Error>) -> Void) {
+        print("DEBUG: Sending message from \(senderId) to \(receiverId) in chat \(chatId)") // Added for debugging
+
         let messageRef = db.collection("chats").document(chatId).collection("messages").document()
 
         // Create the message with isRead set to false (since it's just being sent)
         let message = Message(
             id: messageRef.documentID,
             senderId: senderId,
-            receiverId: receiverId, // Adding receiverId to track the recipient
+            receiverId: receiverId,
             text: text,
             timestamp: Timestamp(),
-            isRead: false // The message is unread when first sent
+            isRead: false
         )
 
-        // Save the message in Firestore
         messageRef.setData(message.toDictionary()) { error in
             if let error = error {
                 completion(.failure(error))
             } else {
+                print("DEBUG: Message sent successfully. Message ID: \(message.id ?? "nil")") // Debugging
                 // Update the last message timestamp in the chat
                 self.updateLastMessageTimestamp(chatId: chatId)
                 completion(.success(message))
             }
         }
     }
+
+
 
     // Fetch messages in a chat
     func fetchMessages(forChatId chatId: String, completion: @escaping (Result<[Message], Error>) -> Void) {

@@ -11,7 +11,9 @@ struct IdentifiableString: Identifiable {
 
 struct ChatIdentifier: Identifiable {
     var id: String
+    var userIds: [String] // Add userIds to keep track of users in the chat
 }
+
 
 struct Post: Identifiable {
     var id: String
@@ -165,10 +167,12 @@ struct Feed: View {
                     }
 
                 }
-                // This is where you add the fullScreenCover modifier
                 .fullScreenCover(item: $selectedChatId) { chatIdentifier in
-                    ChatView(chatId: chatIdentifier.id, currentUserId: Auth.auth().currentUser!.uid, receiverId: selectedChatId?.id ?? "") // Pass necessary data to ChatView
+                    // Get the receiverId by finding the other user in the chat (i.e., not the current user)
+                    let otherUserId = chatIdentifier.userIds.first { $0 != Auth.auth().currentUser!.uid } ?? ""
+                    ChatView(chatId: chatIdentifier.id, currentUserId: Auth.auth().currentUser!.uid, receiverId: otherUserId)
                 }
+
             }
         }
         .onAppear {
@@ -192,18 +196,26 @@ struct Feed: View {
     }
 
     func initiateChat(with userId: String) {
-        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            print("Error: No authenticated user")
+            return
+        }
+
+        // Debugging: Print the current user and the user we're trying to initiate a chat with
+        print("Initiating chat between \(currentUserId) and \(userId)")
 
         ChatService().getOrCreateChat(forUsers: [currentUserId, userId]) { result in
             switch result {
             case .success(let chatId):
-                self.selectedChatId = ChatIdentifier(id: chatId) // Wrap chatId in ChatIdentifier
-                // Add a navigation or fullScreenCover if necessary
+                // Wrap the chatId and userIds in ChatIdentifier
+                self.selectedChatId = ChatIdentifier(id: chatId, userIds: [currentUserId, userId]) // Pass userIds array here
             case .failure(let error):
                 print("Error initiating chat: \(error)")
             }
         }
     }
+
+
 
     // Refresh feed functionality
     func refreshFeed() {
