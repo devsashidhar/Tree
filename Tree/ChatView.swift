@@ -5,6 +5,8 @@ struct ChatView: View {
     let chatId: String
     let currentUserId: String
     let receiverId: String // Added receiverId to handle message sending properly
+    
+    @Environment(\.presentationMode) var presentationMode // To handle the back button action
 
     @State private var messages: [Message] = []
     @State private var messageText: String = ""
@@ -13,6 +15,20 @@ struct ChatView: View {
 
     var body: some View {
         VStack {
+            // Custom back button at the top
+            HStack {
+                Button(action: {
+                    // Dismiss the ChatView and return to the Feed
+                    self.presentationMode.wrappedValue.dismiss()
+                }) {
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(.blue)
+                        .imageScale(.large)
+                        .padding()
+                }
+
+                Spacer()
+            }
             if isLoading {
                 ProgressView("Loading messages...")
             } else {
