@@ -35,8 +35,21 @@ struct AccountView: View {
                 } else {
                     VStack {
                         if userPosts.isEmpty {
-                            // Show a black screen without posts when loaded but empty
-                            Color.black
+                            // Show a message prompting the user to upload pictures
+                            VStack {
+                                Text("🏞️") // Mountain Scene emoji
+                                    .font(.system(size: 60)) // Adjust the size of the emoji
+                                    .padding(.bottom, 10) // Add some spacing between the emoji and the text
+
+                                Text("Upload pictures to show up here")
+                                    .foregroundColor(.gray)
+                                    .font(.system(size: 18, weight: .medium))
+                                    .padding()
+
+                                Spacer() // Pushes content to the center
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Color.black) // Ensure the background remains black
                         } else {
                             ScrollView {
                                 LazyVGrid(columns: columns, spacing: 10) {

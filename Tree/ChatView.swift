@@ -27,7 +27,7 @@ struct ChatView: View {
                                     .foregroundColor(.white)
                                     .cornerRadius(8)
                             } else {
-                                Text("\(userNames[message.senderId] ?? "Unknown") says: \(message.text)") // Fetch correct username
+                                Text(message.text) // Fetch correct username
                                     .padding()
                                     .background(Color.gray)
                                     .foregroundColor(.white)
