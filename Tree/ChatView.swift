@@ -71,6 +71,7 @@ struct ChatView: View {
         }
         .onAppear {
             fetchMessages()
+            markMessagesAsRead(for: messages) // This ensures messages are marked as read.
         }
     }
 

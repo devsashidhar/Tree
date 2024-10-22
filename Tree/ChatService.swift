@@ -190,4 +190,19 @@ class ChatService {
             }
         }
     }
+    
+    // Check if there are unread messages for a given chat and user
+    func hasUnreadMessages(inChat chatId: String, forUserId userId: String, completion: @escaping (Result<Bool, Error>) -> Void) {
+        db.collection("chats").document(chatId).collection("messages")
+            .whereField("receiverId", isEqualTo: userId)
+            .whereField("isRead", isEqualTo: false)
+            .getDocuments { (snapshot, error) in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    let hasUnread = snapshot?.documents.count ?? 0 > 0
+                    completion(.success(hasUnread))
+                }
+            }
+    }
 }
