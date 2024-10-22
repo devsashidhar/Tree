@@ -4,15 +4,30 @@ import FirebaseFirestore
 struct ChatView: View {
     let chatId: String
     let currentUserId: String
-    let receiverId: String // Added receiverId to handle message sending properly
+    let receiverId: String
+    @Environment(\.presentationMode) var presentationMode // Used for dismissing the view
 
     @State private var messages: [Message] = []
     @State private var messageText: String = ""
     @State private var isLoading: Bool = true
-    @State private var userNames: [String: String] = [:] // Cache of userIds and usernames
+    @State private var userNames: [String: String] = [:]
 
     var body: some View {
         VStack {
+            // Custom Back Button
+            HStack {
+                Button(action: {
+                    presentationMode.wrappedValue.dismiss() // Dismiss the ChatView
+                }) {
+                    HStack {
+                        Image(systemName: "chevron.left")
+                        Text("Back")
+                    }
+                }
+                .padding()
+                Spacer()
+            }
+
             if isLoading {
                 ProgressView("Loading messages...")
             } else {
@@ -27,7 +42,7 @@ struct ChatView: View {
                                     .foregroundColor(.white)
                                     .cornerRadius(8)
                             } else {
-                                Text("\(userNames[message.senderId] ?? "Unknown") says: \(message.text)") // Fetch correct username
+                                Text("\(userNames[message.senderId] ?? "Unknown") says: \(message.text)")
                                     .padding()
                                     .background(Color.gray)
                                     .foregroundColor(.white)
@@ -44,7 +59,7 @@ struct ChatView: View {
                 TextField("Type a message...", text: $messageText)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                 Button(action: {
-                    sendMessage() // Send the message
+                    sendMessage()
                 }) {
                     Image(systemName: "paperplane.fill")
                         .resizable()
