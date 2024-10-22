@@ -4,6 +4,15 @@ import CoreLocation
 import Kingfisher
 import FirebaseAuth
 
+// Step 1: Add this struct at the top of your file
+struct IdentifiableString: Identifiable {
+    var id: String
+}
+
+struct ChatIdentifier: Identifiable {
+    var id: String
+}
+
 struct Post: Identifiable {
     var id: String
     var userId: String
@@ -18,39 +27,59 @@ struct Post: Identifiable {
 struct Feed: View {
     @ObservedObject var locationManager = LocationManager()
     @State private var posts: [Post] = []
-    @State private var users: [String: String] = [:] // Cache usernames by userId
+    @State private var users: [String: String] = [:]
     @State private var isRefreshing = false
-    @State private var allPostsViewed = false // Track if all posts are viewed
-    @State private var isLoading = false // Track if loading
-    @State private var distanceFilter: Int = 10 // Default to 10 miles
+    @State private var allPostsViewed = false
+    @State private var isLoading = false
+    @State private var distanceFilter: Int = 10
+    @State private var selectedChatId: ChatIdentifier? // Use ChatIdentifier instead of String
+    @State private var isMessageCenterPresented = false
+    @State private var unreadMessagesCount: Int = 0 // Unread messages count
 
     var body: some View {
         NavigationView {
             ZStack {
-                Color.black.edgesIgnoringSafeArea(.all) // Keep background black
+                Color.black.edgesIgnoringSafeArea(.all)
 
                 VStack(spacing: 0) {
-                    // Custom Header (fixed)
+                    // Custom Header
                     HStack {
                         Text("Wander")
-                            .font(.custom("AvenirNext-Bold", size: 34)) // Custom font with larger size
+                            .font(.custom("Noteworthy", size: 34))
                             .foregroundColor(.white)
-                            .shadow(color: .gray, radius: 2, x: 0, y: 2) // Add shadow for depth
-                            .tracking(2) // Add spacing between letters
+                            .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
+                            .tracking(2)
                         Spacer()
+
+                        // Messaging button with unread count badge
                         Button(action: {
-                            // Action for the distance filter (add your logic here)
-                            print("Distance filter pressed")
+                            isMessageCenterPresented = true
                         }) {
-                            Image(systemName: "location.circle")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 28, height: 28)
-                                .foregroundColor(.white)
+                            ZStack {
+                                Image(systemName: "message.fill")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 28, height: 28)
+                                    .foregroundColor(.white)
+                                
+                                if unreadMessagesCount > 0 {
+                                    // Show unread count badge
+                                    Text("\(unreadMessagesCount)")
+                                        .font(.caption2)
+                                        .padding(4)
+                                        .background(Color.red)
+                                        .foregroundColor(.white)
+                                        .clipShape(Circle())
+                                        .offset(x: 10, y: -10)
+                                }
+                            }
+                        }
+                        .sheet(isPresented: $isMessageCenterPresented) {
+                            MessagingCenterView(currentUserId: Auth.auth().currentUser?.uid ?? "")
                         }
                     }
                     .padding()
-                    .background(Color.black) // Ensure the title bar is black
+                    .background(Color.black)
 
                     // Feed Content
                     if isLoading {
@@ -108,6 +137,17 @@ struct Feed: View {
                                             .scaledToFill()
                                             .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
                                             .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        // Messaging Button
+                                        Button(action: {
+                                            initiateChat(with: post.userId)
+                                        }) {
+                                            Text("Message User")
+                                                .font(.system(size: 14, weight: .bold))
+                                                .foregroundColor(.white)
+                                                .padding()
+                                                .background(Color.blue)
+                                                .cornerRadius(10)
+                                        }
                                     }
                                     .padding(.horizontal)
                                     .padding(.vertical, 5)
@@ -123,11 +163,45 @@ struct Feed: View {
                             refreshFeed()
                         }
                     }
+
+                }
+                // This is where you add the fullScreenCover modifier
+                .fullScreenCover(item: $selectedChatId) { chatIdentifier in
+                    ChatView(chatId: chatIdentifier.id, currentUserId: Auth.auth().currentUser!.uid, receiverId: selectedChatId?.id ?? "") // Pass necessary data to ChatView
                 }
             }
         }
         .onAppear {
+            fetchUnreadMessages()
             fetchPosts()
+        }
+    }
+
+    // Function to fetch unread messages count
+    func fetchUnreadMessages() {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        ChatService().fetchUnreadMessagesCount(forUserId: userId) { result in
+            switch result {
+            case .success(let count):
+                self.unreadMessagesCount = count
+            case .failure(let error):
+                print("Error fetching unread messages count: \(error)")
+            }
+        }
+    }
+
+    func initiateChat(with userId: String) {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+
+        ChatService().getOrCreateChat(forUsers: [currentUserId, userId]) { result in
+            switch result {
+            case .success(let chatId):
+                self.selectedChatId = ChatIdentifier(id: chatId) // Wrap chatId in ChatIdentifier
+                // Add a navigation or fullScreenCover if necessary
+            case .failure(let error):
+                print("Error initiating chat: \(error)")
+            }
         }
     }
 
