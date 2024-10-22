@@ -5,8 +5,6 @@ struct ChatView: View {
     let chatId: String
     let currentUserId: String
     let receiverId: String // Added receiverId to handle message sending properly
-    
-    @Environment(\.presentationMode) var presentationMode // To handle the back button action
 
     @State private var messages: [Message] = []
     @State private var messageText: String = ""
@@ -15,7 +13,6 @@ struct ChatView: View {
 
     var body: some View {
         VStack {
-            // Custom back button at the top
             if isLoading {
                 ProgressView("Loading messages...")
             } else {
@@ -30,7 +27,7 @@ struct ChatView: View {
                                     .foregroundColor(.white)
                                     .cornerRadius(8)
                             } else {
-                                Text(message.text) // Fetch correct username
+                                Text("\(userNames[message.senderId] ?? "Unknown") says: \(message.text)") // Fetch correct username
                                     .padding()
                                     .background(Color.gray)
                                     .foregroundColor(.white)
@@ -58,9 +55,7 @@ struct ChatView: View {
         }
         .onAppear {
             fetchMessages()
-            markMessagesAsRead(for: messages) // This ensures messages are marked as read.
         }
-        .navigationBarTitle("Chat", displayMode: .inline) // This ensures there's a navigation bar title
     }
 
     private func fetchMessages() {

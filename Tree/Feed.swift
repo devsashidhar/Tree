@@ -139,22 +139,17 @@ struct Feed: View {
                                             .scaledToFill()
                                             .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
                                             .clipShape(RoundedRectangle(cornerRadius: 10))
-                                        // Messaging Button (Use NavigationLink instead of Button)
-                                        NavigationLink(
-                                            destination: ChatView(chatId: "someChatId", currentUserId: "yourCurrentUserId", receiverId: post.userId)) {
-                                            HStack(spacing: 4) {
-                                                Text("Message Artist")
-                                                    .font(.system(size: 8, weight: .semibold)) // Smaller text size
-                                            }
-                                            .foregroundColor(.white)
-                                            .padding(6) // Smaller padding
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 8) // Slightly smaller corner radius
-                                                    .fill(Color.blue.opacity(0.8)) // Navy Blue color
-                                            )
-                                            .shadow(color: Color.black.opacity(0.2), radius: 2, x: 1, y: 1)
+                                        // Messaging Button
+                                        Button(action: {
+                                            initiateChat(with: post.userId)
+                                        }) {
+                                            Text("Message User")
+                                                .font(.system(size: 14, weight: .bold))
+                                                .foregroundColor(.white)
+                                                .padding()
+                                                .background(Color.blue)
+                                                .cornerRadius(10)
                                         }
-
                                     }
                                     .padding(.horizontal)
                                     .padding(.vertical, 5)
