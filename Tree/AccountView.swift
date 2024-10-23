@@ -74,6 +74,11 @@ struct AccountView: View {
                                             .onTapGesture {
                                                 selectedImage = FullScreenImage(url: post.imageUrl) // Set the selected image for full screen
                                             }
+                                        // Display the number of likes under each picture
+                                        Text("\(post.likes.count) Likes")
+                                            .font(.caption)
+                                            .foregroundColor(.white)
+                                            .padding(.top, 2) // Add slight padding above the likes
                                     }
                                 }
                                 .padding()
@@ -156,6 +161,7 @@ struct AccountView: View {
                         let latitude = data["latitude"] as? Double ?? 0.0
                         let longitude = data["longitude"] as? Double ?? 0.0
                         let timestamp = data["timestamp"] as? Timestamp ?? Timestamp(date: Date())
+                        let likes = data["likes"] as? [String] ?? [] // Fetch the likes array from Firestore
 
                         // Create a Post object without username initially
                         let post = Post(id: document.documentID,
@@ -165,7 +171,8 @@ struct AccountView: View {
                                         locationName: locationName,
                                         latitude: latitude,
                                         longitude: longitude,
-                                        timestamp: timestamp)
+                                        timestamp: timestamp,
+                                        likes: likes) // Include likes here)
 
                         fetchedPosts.append(post)
                     }

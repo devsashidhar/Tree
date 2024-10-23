@@ -24,6 +24,7 @@ struct Post: Identifiable {
     var latitude: Double
     var longitude: Double
     var timestamp: Timestamp
+    var likes: [String] = [] // Array to store user IDs of people who liked the post
 }
 
 struct Feed: View {
@@ -37,6 +38,7 @@ struct Feed: View {
     @State private var selectedChatId: ChatIdentifier? // Use ChatIdentifier instead of String
     @State private var isMessageCenterPresented = false
     @State private var unreadMessagesCount: Int = 0 // Unread messages count
+    @State private var likedPosts: Set<String> = [] // Track liked posts for the current session
 
     var body: some View {
         NavigationView {
@@ -139,16 +141,36 @@ struct Feed: View {
                                             .scaledToFill()
                                             .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
                                             .clipShape(RoundedRectangle(cornerRadius: 10))
+                                            .onTapGesture(count: 2) {
+                                                    likePost(post) // Double tap gesture to like the picture
+                                            }
                                         // Messaging Button
-                                        Button(action: {
-                                            initiateChat(with: post.userId)
-                                        }) {
-                                            Text("Message User")
-                                                .font(.system(size: 14, weight: .bold))
+                                        HStack {
+                                            Button(action: {
+                                                likePost(post)
+                                            }) {
+                                                Image(systemName: likedPosts.contains(post.id) ? "heart.fill" : "heart")
+                                                    .resizable()
+                                                    .frame(width: 16, height: 16)
+                                                    .foregroundColor(likedPosts.contains(post.id) ? .red : .gray)
+                                            }
+                                            .padding(.trailing, 8)
+                                            
+                                            Button(action: {
+                                                initiateChat(with: post.userId)
+                                            }) {
+                                                HStack(spacing: 4) {
+                                                    Text("Message Artist")
+                                                        .font(.system(size: 8, weight: .semibold))
+                                                }
                                                 .foregroundColor(.white)
-                                                .padding()
-                                                .background(Color.blue)
-                                                .cornerRadius(10)
+                                                .padding(6)
+                                                .background(
+                                                    RoundedRectangle(cornerRadius: 8)
+                                                        .fill(Color.blue.opacity(0.8))
+                                                )
+                                                .shadow(color: Color.black.opacity(0.2), radius: 2, x: 1, y: 1)
+                                            }
                                         }
                                     }
                                     .padding(.horizontal)
@@ -471,6 +493,26 @@ struct Feed: View {
             } else {
                 print("Successfully updated viewedPosts with post: \(post.id)")
             }
+        }
+    }
+    
+    // Like a post
+    func likePost(_ post: Post) {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+
+        // Check if post is already liked
+        if likedPosts.contains(post.id) {
+            // If already liked, remove the like
+            Firestore.firestore().collection("posts").document(post.id).updateData([
+                "likes": FieldValue.arrayRemove([currentUserId])
+            ])
+            likedPosts.remove(post.id)
+        } else {
+            // If not liked, add the like
+            Firestore.firestore().collection("posts").document(post.id).updateData([
+                "likes": FieldValue.arrayUnion([currentUserId])
+            ])
+            likedPosts.insert(post.id)
         }
     }
 }
