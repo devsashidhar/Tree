@@ -66,23 +66,38 @@ struct AccountView: View {
                             ScrollView {
                                 LazyVGrid(columns: columns, spacing: 10) {
                                     ForEach(userPosts) { post in
-                                        KFImage(URL(string: post.imageUrl))
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: UIScreen.main.bounds.width / 2 - 15, height: UIScreen.main.bounds.width / 2 - 15)
-                                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                                            .onTapGesture {
-                                                selectedImage = FullScreenImage(url: post.imageUrl) // Set the selected image for full screen
+                                        ZStack(alignment: .topLeading) { // Use ZStack to overlay likes on top of the image
+                                            KFImage(URL(string: post.imageUrl))
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: UIScreen.main.bounds.width / 2 - 15, height: UIScreen.main.bounds.width / 2 - 15)
+                                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                                .onTapGesture {
+                                                    selectedImage = FullScreenImage(url: post.imageUrl) // Set the selected image for full screen
+                                                }
+                                            
+                                            // Overlay the number of likes with a heart icon in the top left corner
+                                            HStack(spacing: 4) {
+                                                Text("\(post.likes.count)")
+                                                    .font(.caption)
+                                                    .foregroundColor(.white)
+                                                
+                                                Image(systemName: "heart.fill") // Heart icon
+                                                    .resizable()
+                                                    .scaledToFit()
+                                                    .frame(width: 12, height: 12) // Small heart icon size
+                                                    .foregroundColor(.red)
                                             }
-                                        // Display the number of likes under each picture
-                                        Text("\(post.likes.count) Likes")
-                                            .font(.caption)
-                                            .foregroundColor(.white)
-                                            .padding(.top, 2) // Add slight padding above the likes
+                                            .padding(6)
+                                            .background(Color.black.opacity(0.7))
+                                            .cornerRadius(5)
+                                            .padding([.top, .leading], 8) // Position in the top left with padding
+                                        }
                                     }
                                 }
                                 .padding()
                             }
+
                         }
                     }
                 }
