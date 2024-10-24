@@ -20,20 +20,20 @@ class ChatService {
         }
 
         // Update read status of messages when a chat is viewed
-        func markMessagesAsRead(inChat chatId: String, forUserId userId: String) {
-            let db = Firestore.firestore()
-            db.collection("messages")
-                .whereField("chatId", isEqualTo: chatId)
-                .whereField("receiverId", isEqualTo: userId)
-                .whereField("isRead", isEqualTo: false)
-                .getDocuments { (snapshot, error) in
-                    if let documents = snapshot?.documents {
-                        for document in documents {
-                            document.reference.updateData(["isRead": true])
-                        }
+    func markMessagesAsRead(inChat chatId: String, forUserId userId: String) {
+        let db = Firestore.firestore()
+        db.collection("chats").document(chatId).collection("messages")
+            .whereField("receiverId", isEqualTo: userId)
+            .whereField("isRead", isEqualTo: false) // Only mark unread messages
+            .getDocuments { (snapshot, error) in
+                if let documents = snapshot?.documents {
+                    for document in documents {
+                        document.reference.updateData(["isRead": true]) // Mark message as read
                     }
                 }
-        }
+            }
+    }
+
 
     func getOrCreateChat(forUsers userIds: [String], completion: @escaping (Result<String, Error>) -> Void) {
         let chatsRef = Firestore.firestore().collection("chats")
@@ -88,35 +88,53 @@ class ChatService {
         }
     }
 
-    func fetchChats(forUserId userId: String, completion: @escaping (Result<[(Chat, String)], Error>) -> Void) {
+    func fetchChats(forUserId userId: String, completion: @escaping (Result<[(Chat, String, Bool)], Error>) -> Void) {
+        let db = Firestore.firestore()
+
+        // Start fetching chats from Firestore
         db.collection("chats").whereField("userIds", arrayContains: userId).getDocuments { snapshot, error in
             if let error = error {
                 completion(.failure(error))
             } else {
-                var chatResults: [(Chat, String)] = []
+                var chatResults: [(Chat, String, Bool)] = [] // Chat, Username, hasUnreadMessages
                 let group = DispatchGroup()
 
-                for doc in snapshot?.documents ?? [] {
-                    if let chat = Chat(from: doc.data(), id: doc.documentID) {
-                        // Find the other user in the chat (not the current user)
-                        let otherUserId = chat.userIds.first { $0 != userId } ?? userId
+                // Fetch unread messages before processing the chats
+                self.fetchUnreadMessages(forUserId: userId) { unreadResult in
+                    switch unreadResult {
+                    case .success(let unreadChats):
+                        for doc in snapshot?.documents ?? [] {
+                            // Unwrap the chat from Firestore document
+                            if let chat = Chat(from: doc.data(), id: doc.documentID) {
+                                // Safely unwrap the chat's id before proceeding
+                                guard let chatId = chat.id else { continue }
+                                
+                                let otherUserId = chat.userIds.first { $0 != userId } ?? userId
 
-                        group.enter()
-                        // Fetch the username of the other user
-                        self.fetchUsername(forUserId: otherUserId) { result in
-                            switch result {
-                            case .success(let username):
-                                chatResults.append((chat, username))
-                            case .failure:
-                                chatResults.append((chat, "Unknown"))
+                                group.enter()
+                                // Fetch the username of the other user
+                                self.fetchUsername(forUserId: otherUserId) { result in
+                                    switch result {
+                                    case .success(let username):
+                                        // Check if the chat has unread messages
+                                        let hasUnreadMessages = unreadChats[chatId] ?? false
+                                        chatResults.append((chat, username, hasUnreadMessages))
+                                    case .failure:
+                                        // If fetching username fails, append with default "Unknown" and no unread messages
+                                        chatResults.append((chat, "Unknown", false))
+                                    }
+                                    group.leave()
+                                }
                             }
-                            group.leave()
                         }
+                    case .failure(let error):
+                        completion(.failure(error)) // If fetching unread messages failed
                     }
-                }
 
-                group.notify(queue: .main) {
-                    completion(.success(chatResults))
+                    // Notify when all group tasks are done
+                    group.notify(queue: .main) {
+                        completion(.success(chatResults))
+                    }
                 }
             }
         }
@@ -190,4 +208,39 @@ class ChatService {
             }
         }
     }
+    
+    func fetchUnreadMessages(forUserId userId: String, completion: @escaping (Result<[String: Bool], Error>) -> Void) {
+        let db = Firestore.firestore()
+        
+        db.collection("chats").whereField("userIds", arrayContains: userId).getDocuments { snapshot, error in
+            if let error = error {
+                completion(.failure(error))
+            } else {
+                var unreadChats: [String: Bool] = [:]
+                let group = DispatchGroup()
+
+                for doc in snapshot?.documents ?? [] {
+                    let chatId = doc.documentID
+                    group.enter()
+                    // Fetch unread messages in each chat for the current user
+                    db.collection("chats").document(chatId).collection("messages")
+                        .whereField("receiverId", isEqualTo: userId)
+                        .whereField("isRead", isEqualTo: false)
+                        .getDocuments { snapshot, error in
+                            if let snapshot = snapshot, !snapshot.documents.isEmpty {
+                                unreadChats[chatId] = true
+                            } else {
+                                unreadChats[chatId] = false
+                            }
+                            group.leave()
+                        }
+                }
+
+                group.notify(queue: .main) {
+                    completion(.success(unreadChats))
+                }
+            }
+        }
+    }
+
 }
