@@ -39,9 +39,22 @@
 		10D266292CB8B83000B55CBC /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		10F788F72CC9846B00B48AA0 /* Exceptions for "Tree" folder in "Tree" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 10D265F12CB8B37B00B55CBC /* Tree */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		10D265F42CB8B37B00B55CBC /* Tree */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				10F788F72CC9846B00B48AA0 /* Exceptions for "Tree" folder in "Tree" target */,
+			);
 			path = Tree;
 			sourceTree = "<group>";
 		};
@@ -420,6 +433,7 @@
 				DEVELOPMENT_ASSET_PATHS = "\"Tree/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Tree/Info.plist;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We need your location to show relevant photos nearby";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -459,6 +473,7 @@
 				DEVELOPMENT_ASSET_PATHS = "\"Tree/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Tree/Info.plist;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We need your location to show relevant photos nearby";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;

@@ -42,7 +42,7 @@ struct ChatView: View {
                                     .foregroundColor(.white)
                                     .cornerRadius(8)
                             } else {
-                                Text("\(userNames[message.senderId] ?? "Unknown") says: \(message.text)")
+                                Text(message.text) // Always show just the message
                                     .padding()
                                     .background(Color.gray)
                                     .foregroundColor(.white)

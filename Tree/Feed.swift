@@ -155,7 +155,10 @@ struct Feed: View {
                                                     .foregroundColor(likedPosts.contains(post.id) ? .red : .gray)
                                             }
                                             .padding(.trailing, 8)
-                                            
+                                            Button("Send Test Notification") {
+                                                NotificationManager.shared.sendLikeNotification(totalLikes: 5)
+                                            }
+
                                             Button(action: {
                                                 initiateChat(with: post.userId)
                                             }) {
