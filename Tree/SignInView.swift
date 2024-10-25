@@ -15,123 +15,137 @@ struct SignInView: View {
     @State private var leafOpacity: Double = 1.0
 
     var body: some View {
-        ZStack {
-            LinearGradient(gradient: Gradient(colors: [Color.purple, Color.blue]),
-                           startPoint: .topLeading,
-                           endPoint: .bottomTrailing)
-                .ignoresSafeArea()
+        NavigationView {
+            ZStack {
+                LinearGradient(gradient: Gradient(colors: [Color.purple, Color.blue]),
+                               startPoint: .topLeading,
+                               endPoint: .bottomTrailing)
+                    .ignoresSafeArea()
 
-            VStack {
-                Spacer()
+                VStack {
+                    Spacer()
 
-                ZStack {
-                    Text("Wander")
-                        .font(.custom("Noteworthy", size: 50))
-                        .foregroundColor(.white)
-                        .shadow(color: .black.opacity(0.3), radius: 5, x: 2, y: 2)
+                    ZStack {
+                        Text("Wander")
+                            .font(.custom("Noteworthy", size: 50))
+                            .foregroundColor(.white)
+                            .shadow(color: .black.opacity(0.3), radius: 5, x: 2, y: 2)
 
-                    Image(systemName: "leaf.fill")
-                        .foregroundColor(.green)
-                        .font(.system(size: 40))
-                        .offset(x: 0, y: leafOffsetY)
-                        .opacity(leafOpacity)
-                        .onAppear {
-                            withAnimation(
-                                Animation.easeInOut(duration: 3.0)
-                                    .repeatCount(1, autoreverses: false)
-                            ) {
-                                leafOffsetY = 600
-                                leafOpacity = 0
+                        Image(systemName: "leaf.fill")
+                            .foregroundColor(.green)
+                            .font(.system(size: 40))
+                            .offset(x: 0, y: leafOffsetY)
+                            .opacity(leafOpacity)
+                            .onAppear {
+                                withAnimation(
+                                    Animation.easeInOut(duration: 3.0)
+                                        .repeatCount(1, autoreverses: false)
+                                ) {
+                                    leafOffsetY = 600
+                                    leafOpacity = 0
+                                }
+                            }
+                    }
+                    .padding(.bottom, 20)
+
+                    VStack(spacing: 20) {
+                        Picker("Login or Signup", selection: $isLoginMode) {
+                            Text("Login").tag(true)
+                            Text("Signup").tag(false)
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
+                        .padding()
+                        .background(Color.white.opacity(0.2))
+                        .cornerRadius(8)
+                        .padding(.horizontal, 16)
+
+                        VStack(spacing: 16) {
+                            if !isLoginMode {
+                                TextField("First Name", text: $firstName)
+                                    .padding()
+                                    .background(Color.white.opacity(0.2))
+                                    .cornerRadius(8)
+                                    .padding(.horizontal, 16)
+                                    .disableAutocorrection(true)
+
+                                TextField("Last Name", text: $lastName)
+                                    .padding()
+                                    .background(Color.white.opacity(0.2))
+                                    .cornerRadius(8)
+                                    .padding(.horizontal, 16)
+                                    .disableAutocorrection(true)
+
+                                TextField("Username", text: $username)
+                                    .padding()
+                                    .background(Color.white.opacity(0.2))
+                                    .autocapitalization(.none)
+                                    .cornerRadius(8)
+                                    .padding(.horizontal, 16)
+                                    .disableAutocorrection(true)
+                            }
+
+                            TextField("Email", text: $email)
+                                .padding()
+                                .autocapitalization(.none)
+                                .background(Color.white.opacity(0.2))
+                                .cornerRadius(8)
+                                .padding(.horizontal, 16)
+                                .disableAutocorrection(true)
+
+                            SecureField("Password", text: $password)
+                                .padding()
+                                .autocapitalization(.none)
+                                .background(Color.white.opacity(0.2))
+                                .cornerRadius(8)
+                                .padding(.horizontal, 16)
+
+                            if isLoginMode {
+                                // Forgot Password Button
+                                NavigationLink(destination: ResetPasswordView()) {
+                                    Text("Forgot My Password?")
+                                        .foregroundColor(.white)
+                                        .underline()
+                                        .font(.footnote) // Smaller font
+                                }
+                                .padding(.top, 4)
+                            }
+
+                            if !isLoginMode {
+                                SecureField("Confirm Password", text: $confirmPassword)
+                                    .padding()
+                                    .background(Color.white.opacity(0.2))
+                                    .autocapitalization(.none)
+                                    .cornerRadius(8)
+                                    .padding(.horizontal, 16)
+                            }
+
+                            Button(action: handleAction) {
+                                Text(isLoginMode ? "Sign In" : "Sign Up")
+                                    .frame(width: 200)
+                                    .padding()
+                                    .background(Color.green)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(20)
+                                    .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 5)
+                            }
+                            .padding(.top, 16)
+
+                            if !errorMessage.isEmpty {
+                                Text(errorMessage)
+                                    .foregroundColor(.red)
+                                    .padding(.top, 8)
                             }
                         }
-                }
-                .padding(.bottom, 20)
-
-                VStack(spacing: 20) {
-                    Picker("Login or Signup", selection: $isLoginMode) {
-                        Text("Login").tag(true)
-                        Text("Signup").tag(false)
                     }
-                    .pickerStyle(SegmentedPickerStyle())
-                    .padding()
-                    .background(Color.white.opacity(0.2))
-                    .cornerRadius(8)
-                    .padding(.horizontal, 16)
+                    .frame(maxWidth: 350)
+                    .padding(.vertical, 20)
 
-                    VStack(spacing: 16) {
-                        if !isLoginMode {
-                            TextField("First Name", text: $firstName)
-                                .padding()
-                                .background(Color.white.opacity(0.2))
-                                .cornerRadius(8)
-                                .padding(.horizontal, 16)
-                                .disableAutocorrection(true)
-
-                            TextField("Last Name", text: $lastName)
-                                .padding()
-                                .background(Color.white.opacity(0.2))
-                                .cornerRadius(8)
-                                .padding(.horizontal, 16)
-                                .disableAutocorrection(true)
-
-                            TextField("Username", text: $username)
-                                .padding()
-                                .background(Color.white.opacity(0.2))
-                                .autocapitalization(.none)
-                                .cornerRadius(8)
-                                .padding(.horizontal, 16)
-                                .disableAutocorrection(true)
-                        }
-
-                        TextField("Email", text: $email)
-                            .padding()
-                            .autocapitalization(.none)
-                            .background(Color.white.opacity(0.2))
-                            .cornerRadius(8)
-                            .padding(.horizontal, 16)
-                            .disableAutocorrection(true)
-
-                        SecureField("Password", text: $password)
-                            .padding()
-                            .autocapitalization(.none)
-                            .background(Color.white.opacity(0.2))
-                            .cornerRadius(8)
-                            .padding(.horizontal, 16)
-
-                        if !isLoginMode {
-                            SecureField("Confirm Password", text: $confirmPassword)
-                                .padding()
-                                .background(Color.white.opacity(0.2))
-                                .autocapitalization(.none)
-                                .cornerRadius(8)
-                                .padding(.horizontal, 16)
-                        }
-
-                        Button(action: handleAction) {
-                            Text(isLoginMode ? "Sign In" : "Sign Up")
-                                .frame(width: 200)
-                                .padding()
-                                .background(Color.green)
-                                .foregroundColor(.white)
-                                .cornerRadius(20)
-                                .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 5)
-                        }
-                        .padding(.top, 16)
-
-                        if !errorMessage.isEmpty {
-                            Text(errorMessage)
-                                .foregroundColor(.red)
-                                .padding(.top, 8)
-                        }
-                    }
+                    Spacer()
                 }
-                .frame(maxWidth: 350)
-                .padding(.vertical, 20)
-
-                Spacer()
             }
+            .navigationTitle(isLoginMode ? "Login" : "Signup")
+            .navigationBarHidden(true)
         }
-        .navigationTitle(isLoginMode ? "Login" : "Signup")
     }
 
     func handleAction() {
@@ -192,4 +206,14 @@ struct SignInView: View {
             }
         }
     }
+    
+    func navigateToResetPasswordView() {
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            if let window = windowScene.windows.first {
+                window.rootViewController = UIHostingController(rootView: ResetPasswordView())
+                window.makeKeyAndVisible()
+            }
+        }
+    }
+
 }
