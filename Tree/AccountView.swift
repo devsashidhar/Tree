@@ -22,121 +22,118 @@ struct AccountView: View {
     ] // 2-column grid
 
     var body: some View {
-        NavigationView {
-            ZStack {
-                // Show a black background
-                Color.black.ignoresSafeArea()
+        ZStack {
+            // Show a black background
+            Color.black.ignoresSafeArea()
 
-                if isLoading {
-                    // Show white loading spinner
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .scaleEffect(2) // Make the spinner larger
-                } else {
-                    VStack {
-                        // Add title and subtitle here
+            if isLoading {
+                // Show white loading spinner
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    .scaleEffect(2) // Make the spinner larger
+            } else {
+                VStack(spacing: 0) { // Reduced spacing
+                    // Title and subtitle section
+                    VStack(spacing: 0) {
+                        Text("Your Gallery")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(height: 40) // Explicit height for title
+                            .padding(.top, 20)
+
+                        Text("Tap to expand each image")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 16))
+                            .frame(height: 20) // Explicit height for subtitle
+                            .padding(.bottom, 20) // Add space between the subtitle and the pictures
+                    }
+
+                    if userPosts.isEmpty {
                         VStack {
-                            Text("Your Gallery")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.top, 10) // Add some top padding
-
-                            Text("Tap to expand each image")
-                                .foregroundColor(.gray)
-                                .font(.system(size: 16))
+                            Text("🏞️")
+                                .font(.system(size: 60))
                                 .padding(.bottom, 10)
+
+                            Text("Upload pictures to show up here")
+                                .foregroundColor(.gray)
+                                .font(.system(size: 18, weight: .medium))
+                                .padding()
                         }
-                        if userPosts.isEmpty {
-                            // Show a message prompting the user to upload pictures
-                            VStack {
-                                Text("🏞️") // Mountain Scene emoji
-                                    .font(.system(size: 60)) // Adjust the size of the emoji
-                                    .padding(.bottom, 10) // Add some spacing between the emoji and the text
-
-                                Text("Upload pictures to show up here")
-                                    .foregroundColor(.gray)
-                                    .font(.system(size: 18, weight: .medium))
-                                    .padding()
-
-                                Spacer() // Pushes content to the center
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color.black) // Ensure the background remains black
-                        } else {
-                            ScrollView {
-                                LazyVGrid(columns: columns, spacing: 10) {
-                                    ForEach(userPosts) { post in
-                                        ZStack(alignment: .topLeading) { // Use ZStack to overlay likes on top of the image
-                                            KFImage(URL(string: post.imageUrl))
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(width: UIScreen.main.bounds.width / 2 - 15, height: UIScreen.main.bounds.width / 2 - 15)
-                                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                                .onTapGesture {
-                                                    selectedImage = FullScreenImage(url: post.imageUrl) // Set the selected image for full screen
-                                                }
-                                            
-                                            // Overlay the number of likes with a heart icon in the top left corner
-                                            HStack(spacing: 4) {
-                                                Text("\(post.likes.count)")
-                                                    .font(.caption)
-                                                    .foregroundColor(.white)
-                                                
-                                                Image(systemName: "heart.fill") // Heart icon
-                                                    .resizable()
-                                                    .scaledToFit()
-                                                    .frame(width: 12, height: 12) // Small heart icon size
-                                                    .foregroundColor(.red)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black)
+                    } else {
+                        ScrollView {
+                            LazyVGrid(columns: columns, spacing: 10) {
+                                ForEach(userPosts) { post in
+                                    ZStack(alignment: .topLeading) {
+                                        KFImage(URL(string: post.imageUrl))
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: UIScreen.main.bounds.width / 2 - 15, height: UIScreen.main.bounds.width / 2 - 15)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                                            .onTapGesture {
+                                                selectedImage = FullScreenImage(url: post.imageUrl)
                                             }
-                                            .padding(6)
-                                            .background(Color.black.opacity(0.7))
-                                            .cornerRadius(5)
-                                            .padding([.top, .leading], 8) // Position in the top left with padding
+
+                                        HStack(spacing: 4) {
+                                            Text("\(post.likes.count)")
+                                                .font(.caption)
+                                                .foregroundColor(.white)
+
+                                            Image(systemName: "heart.fill")
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(width: 12, height: 12)
+                                                .foregroundColor(.red)
                                         }
+                                        .padding(6)
+                                        .background(Color.black.opacity(0.7))
+                                        .cornerRadius(5)
+                                        .padding([.top, .leading], 8)
                                     }
                                 }
-                                .padding()
                             }
-
+                            .padding(.horizontal, 10)
                         }
+                        .frame(maxHeight: .infinity, alignment: .top) // Force the grid to align at the top
                     }
                 }
+                .frame(maxHeight: .infinity, alignment: .top) // Force the entire VStack to align at the top
             }
-            .navigationTitle("Your Posts")
-            .background(Color.black.edgesIgnoringSafeArea(.all))
-            .onAppear {
-                fetchUserPosts()
-            }
-            .fullScreenCover(item: $selectedImage, content: { fullScreenImage in
-                ZStack {
-                    Color.black.ignoresSafeArea()
-
-                    KFImage(URL(string: fullScreenImage.url))
-                        .resizable()
-                        .scaledToFit()
-
-                    // Add a back button in the top-left corner
-                    VStack {
-                        HStack {
-                            Button(action: {
-                                selectedImage = nil // Dismiss the full screen when back button is tapped
-                            }) {
-                                Image(systemName: "arrow.left") // Back icon
-                                    .foregroundColor(.white)
-                                    .padding()
-                                    .background(Circle().fill(Color.black.opacity(0.7)))
-                            }
-                            .padding(.leading, 20)
-                            .padding(.top, 40)
-
-                            Spacer() // Push the button to the top-left
-                        }
-                        Spacer() // Fill the rest of the space
-                    }
-                }
-            })
         }
+        .onAppear {
+            fetchUserPosts()
+        }
+        .fullScreenCover(item: $selectedImage, content: { fullScreenImage in
+            ZStack {
+                Color.black.ignoresSafeArea()
+
+                KFImage(URL(string: fullScreenImage.url))
+                    .resizable()
+                    .scaledToFit()
+
+                VStack {
+                    HStack {
+                        Button(action: {
+                            selectedImage = nil
+                        }) {
+                            Image(systemName: "arrow.left")
+                                .foregroundColor(.white)
+                                .padding()
+                                .background(Circle().fill(Color.black.opacity(0.7)))
+                        }
+                        .padding(.leading, 20)
+                        .padding(.top, 40)
+
+                        Spacer()
+                    }
+                    Spacer()
+                }
+            }
+        })
     }
+
+
 
     // Fetch posts by the current user's userId
     func fetchUserPosts() {

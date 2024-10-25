@@ -18,23 +18,29 @@ struct MessagingCenterView: View {
                     } else {
                         List(chats, id: \.0.id) { (chat, otherUsername, hasUnreadMessages) in
                             HStack {
-                                NavigationLink(
-                                    destination: ChatView(chatId: chat.id!, currentUserId: currentUserId, receiverId: chat.userIds.first { $0 != currentUserId }!)
-                                    .onAppear {
-                                        // Mark messages as read when the chat is opened
-                                        markChatAsRead(chatId: chat.id!)
-                                    }
-                                ) {
-                                    Text("Chat with: \(otherUsername)")
+                                // Optional binding to safely unwrap the receiverId
+                                if let receiverId = chat.userIds.first(where: { $0 != currentUserId }) {
+                                    NavigationLink(
+                                        destination: ChatView(chatId: chat.id!, currentUserId: currentUserId, receiverId: receiverId)
+                                            .onAppear {
+                                                // Mark messages as read when the chat is opened
+                                                markChatAsRead(chatId: chat.id!)
+                                            }
+                                    ) {
+                                        Text("Chat with: \(otherUsername)")
 
-                                    Spacer()
+                                        Spacer()
 
-                                    // Show unread indicator (blue dot) if there are unread messages
-                                    if hasUnreadMessages {
-                                        Circle()
-                                            .fill(Color.blue)
-                                            .frame(width: 10, height: 10)
+                                        // Show unread indicator (blue dot) if there are unread messages
+                                        if hasUnreadMessages {
+                                            Circle()
+                                                .fill(Color.blue)
+                                                .frame(width: 10, height: 10)
+                                        }
                                     }
+                                } else {
+                                    // This block handles the case where receiverId cannot be found
+                                    Text("Error: Could not find a valid user for this chat.")
                                 }
                             }
                         }
