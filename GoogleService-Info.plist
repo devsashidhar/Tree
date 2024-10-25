@@ -9,22 +9,22 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>Dev.Tree</string>
+	<string>com.dev.tree</string>
 	<key>PROJECT_ID</key>
 	<string>tree-406f1</string>
 	<key>STORAGE_BUCKET</key>
 	<string>tree-406f1.appspot.com</string>
 	<key>IS_ADS_ENABLED</key>
-	<false/>
+	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
-	<false/>
+	<false></false>
 	<key>IS_APPINVITE_ENABLED</key>
-	<true/>
+	<true></true>
 	<key>IS_GCM_ENABLED</key>
-	<true/>
+	<true></true>
 	<key>IS_SIGNIN_ENABLED</key>
-	<true/>
+	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:269135212223:ios:e6661d6b4d1d602a28a00a</string>
+	<string>1:269135212223:ios:5d17d29d19a0553828a00a</string>
 </dict>
 </plist>

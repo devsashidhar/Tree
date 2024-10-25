@@ -5,8 +5,9 @@ import UserNotifications
 import FirebaseAuth
 import FirebaseFirestore
 import BackgroundTasks
+import FirebaseMessaging
 
-class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
@@ -25,13 +26,19 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Set the notification delegate to self
         UNUserNotificationCenter.current().delegate = self
         
-        // Register the background task
+        // Set Firebase Messaging delegate
+        Messaging.messaging().delegate = self
+        
+        // Register for remote notifications
+        application.registerForRemoteNotifications()
+        
+        // Register the background task (optional, if you still want to keep background tasks)
         registerBackgroundTask()
         
         return true
     }
     
-    // Register the background task
+    // Register the background task (Optional if you still want background task functionality)
     func registerBackgroundTask() {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: "Dev.Tree.backgroundfetch", using: nil) { task in
             // This is the task handler
@@ -58,7 +65,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Schedule the next refresh
         scheduleAppRefresh()
         print("Scheduled next app refresh")
-        
         
         // Check for new likes on the user's photos
         checkLikesForAllPosts() // Call your function to check likes for all posts
@@ -101,7 +107,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             }
     }
     
-    // Schedule the background task when the app moves to the background
+    // Schedule the background task when the app moves to the background (optional)
     func applicationDidEnterBackground(_ application: UIApplication) {
         scheduleAppRefresh()
     }
@@ -114,6 +120,18 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         completionHandler([.banner, .list, .sound, .badge])
     }
 
+    // MARK: - Handling Remote Notifications
+    
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        // Pass device token to Firebase Messaging
+        Messaging.messaging().apnsToken = deviceToken
+    }
+    
+    // Firebase Messaging Delegate Method
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        print("Firebase registration token: \(String(describing: fcmToken))")
+        // Optionally: send token to the server if needed
+    }
 }
 
 @main

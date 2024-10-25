@@ -67,7 +67,6 @@ struct Feed: View {
                                     .foregroundColor(.white)
                                 
                                 if unreadMessagesCount > 0 {
-                                    // Show unread count badge
                                     Text("\(unreadMessagesCount)")
                                         .font(.caption2)
                                         .padding(4)
@@ -78,8 +77,11 @@ struct Feed: View {
                                 }
                             }
                         }
-                        .sheet(isPresented: $isMessageCenterPresented) {
-                            MessagingCenterView(currentUserId: Auth.auth().currentUser?.uid ?? "")
+                        .fullScreenCover(isPresented: $isMessageCenterPresented) {
+                            NavigationView { // Embed MessagingCenterView in a NavigationView
+                                MessagingCenterView(currentUserId: Auth.auth().currentUser?.uid ?? "")
+                            }
+                            .navigationViewStyle(StackNavigationViewStyle()) // Use stack style for consistent behavior
                         }
                     }
                     .padding()
@@ -205,6 +207,7 @@ struct Feed: View {
             fetchPosts()
         }
     }
+
 
     // Function to fetch unread messages count
     func fetchUnreadMessages() {
