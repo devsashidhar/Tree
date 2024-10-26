@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseFirestore
 
 struct ChatView: View {
     let chatId: String
@@ -10,7 +11,7 @@ struct ChatView: View {
     @State private var messages: [Message] = []
     @State private var messageText: String = ""
     @State private var isLoading: Bool = true
-    @State private var userNames: [String: String] = [:]
+    @State private var userNames: [String: String] = [:] // Store usernames by user ID
 
     var body: some View {
         NavigationStack {
@@ -28,19 +29,33 @@ struct ChatView: View {
                     .padding()
                     
                     Spacer()
-                    
+
+                    // Circular icon button with username
                     Button(action: {
                         // Trigger navigation to UserPostsView
                         navigateToUserPosts = true
                     }) {
-                        Text("View Posts")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.blue)
+                        if let username = userNames[receiverId] {
+                            Text(username.prefix(2).uppercased()) // Show initials or full username
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 36, height: 36)
+                                .background(Color.blue)
+                                .clipShape(Circle())
+                        } else {
+                            // Default view if username is not available
+                            Image(systemName: "person.circle.fill")
+                                .resizable()
+                                .frame(width: 36, height: 36)
+                                .foregroundColor(.blue)
+                        }
                     }
-                    .padding()
-                    
+                    .padding(.horizontal) // Adjust padding to center icon more precisely
+                    .alignmentGuide(.leading) { _ in -20 } // Adjust to shift icon slightly left
+
                     Spacer()
                 }
+                .padding(.top) // Add padding to adjust vertical alignment
 
                 if isLoading {
                     ProgressView("Loading messages...")
@@ -84,6 +99,7 @@ struct ChatView: View {
             }
             .onAppear {
                 fetchMessages()
+                fetchUsername() // Fetch username when the view appears
             }
             // Use navigationDestination with the state variable to navigate to UserPostsView
             .navigationDestination(isPresented: $navigateToUserPosts) {
@@ -106,6 +122,21 @@ struct ChatView: View {
         }
     }
 
+    private func fetchUsername() {
+        // Assume you have a service or Firestore call to get the username by user ID
+        Firestore.firestore().collection("users").document(receiverId).getDocument { (document, error) in
+            if let document = document, document.exists, let data = document.data() {
+                if let username = data["username"] as? String {
+                    DispatchQueue.main.async {
+                        self.userNames[receiverId] = username // Store the username for receiverId
+                    }
+                }
+            } else {
+                print("User document not found or error: \(String(describing: error))")
+            }
+        }
+    }
+
     private func markMessagesAsRead(for messages: [Message]) {
         ChatService().markMessagesAsRead(inChat: chatId, forUserId: currentUserId)
     }
@@ -123,5 +154,4 @@ struct ChatView: View {
             }
         }
     }
-    
 }
