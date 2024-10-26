@@ -110,34 +110,60 @@ struct PostView: View {
 
     // Function to handle post upload
     func uploadPost() {
+        // Clear previous error message and reset isUploading
+        errorMessage = ""
+        isUploading = false
+        
         guard let selectedImage = selectedImage, let location = locationManager.location else {
             errorMessage = "No image selected or location not available."
             return
         }
 
         isUploading = true
-        let storageRef = Storage.storage().reference().child("images/\(UUID().uuidString).jpg")
-        guard let imageData = selectedImage.jpegData(compressionQuality: 0.8) else { return }
 
-        storageRef.putData(imageData, metadata: nil) { metadata, error in
-            if let error = error {
-                self.errorMessage = "Failed to upload image: \(error.localizedDescription)"
-                self.isUploading = false
-                return
-            }
+        // First, analyze the image for humans
+        analyzeImageForHumans(selectedImage) { isAllowed in
+            DispatchQueue.main.async {
+                if isAllowed {
+                    // No humans detected, proceed with the upload
+                    let storageRef = Storage.storage().reference().child("images/\(UUID().uuidString).jpg")
+                    guard let imageData = selectedImage.jpegData(compressionQuality: 0.8) else {
+                        self.errorMessage = "Failed to process image data."
+                        self.isUploading = false
+                        return
+                    }
 
-            storageRef.downloadURL { url, error in
-                if let error = error {
-                    self.errorMessage = "Failed to retrieve image URL: \(error.localizedDescription)"
+                    // Upload image to Firebase Storage
+                    storageRef.putData(imageData, metadata: nil) { metadata, error in
+                        if let error = error {
+                            self.errorMessage = "Failed to upload image: \(error.localizedDescription)"
+                            self.isUploading = false
+                            return
+                        }
+
+                        // Retrieve the download URL after successful upload
+                        storageRef.downloadURL { url, error in
+                            if let error = error {
+                                self.errorMessage = "Failed to retrieve image URL: \(error.localizedDescription)"
+                                self.isUploading = false
+                                return
+                            }
+
+                            guard let imageUrl = url?.absoluteString else { return }
+                            
+                            // Save the post to Firestore with the image URL and location
+                            savePostToFirestore(imageUrl: imageUrl, location: location)
+                        }
+                    }
+                } else {
+                    // Human detected, do not proceed with upload
+                    self.errorMessage = "No humans allowed in the image."
                     self.isUploading = false
-                    return
                 }
-
-                guard let imageUrl = url?.absoluteString else { return }
-                savePostToFirestore(imageUrl: imageUrl, location: location)
             }
         }
     }
+
 
     // Save post to Firestore
     func savePostToFirestore(imageUrl: String, location: CLLocation) {
@@ -162,4 +188,58 @@ struct PostView: View {
             self.isUploading = false
         }
     }
+    
+    func analyzeImageForHumans(_ image: UIImage, completion: @escaping (Bool) -> Void) {
+        guard let imageData = image.jpegData(compressionQuality: 0.8) else { return }
+        let base64Image = imageData.base64EncodedString()
+        let url = URL(string: "https://vision.googleapis.com/v1/images:annotate?key=AIzaSyDnVii14FsV_9UkERduhvJYTobWRhiRpes")!
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let requestBody: [String: Any] = [
+            "requests": [
+                [
+                    "image": ["content": base64Image],
+                    "features": [["type": "LABEL_DETECTION"]]
+                ]
+            ]
+        ]
+        
+        request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            guard let data = data, error == nil else {
+                print("Failed to make request: \(error?.localizedDescription ?? "Unknown error")")
+                completion(false)
+                return
+            }
+            
+            // Print the raw JSON response to inspect its structure
+            if let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                print("Full JSON response: \(json)")
+            } else {
+                print("Failed to parse JSON response.")
+            }
+            
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let labels = (json?["responses"] as? [[String: Any]])?.first?["labelAnnotations"] as? [[String: Any]]
+            let detectedLabels = labels?.compactMap { $0["description"] as? String } ?? []
+            
+            // Check for human-related labels
+            let humanKeywords = ["person", "human", "face", "man", "woman", "people", "child", "forehead", "head", "body", "smile", "chin", "eyebrows", "baby", "guy", "girl", "boy", "lady", "gentleman"]
+            let containsHuman = detectedLabels.contains { label in
+                humanKeywords.contains { keyword in
+                    label.localizedCaseInsensitiveContains(keyword)
+                }
+            }
+            
+            // Allow upload if no human-related labels are detected
+            completion(!containsHuman)
+        }.resume()
+
+    }
+
+    
 }
