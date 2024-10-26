@@ -11,6 +11,8 @@ struct PostView: View {
     @State private var errorMessage: String = ""
     @State private var isUploading = false
     @State private var locationName: String = "" // State for location input
+    @State private var isScanning = false
+    @State private var uploadSuccessMessage: String = "" // For success message
 
     var body: some View {
         ZStack {
@@ -81,6 +83,13 @@ struct PostView: View {
                 }
                 .padding(.top, 10)
                 .disabled(selectedImage == nil || locationName.isEmpty || isUploading) // Disable if no image or location name
+                
+                // Display success message if any
+                if !uploadSuccessMessage.isEmpty {
+                    Text(uploadSuccessMessage)
+                        .foregroundColor(.green)
+                        .padding(.top, 8)
+                }
 
                 // Display error message if any
                 if !errorMessage.isEmpty {
@@ -90,6 +99,20 @@ struct PostView: View {
                 }
             }
             .padding()
+            
+            // Scanning overlay
+            if isScanning {
+                ZStack {
+                    Color.black.opacity(0.5)
+                        .edgesIgnoringSafeArea(.all)
+                    Text("Scanning...")
+                        .foregroundColor(.white)
+                        .font(.title)
+                        .padding()
+                        .background(Color.black.opacity(0.7))
+                        .cornerRadius(10)
+                }
+            }
         }
         .sheet(isPresented: $showImagePicker, content: {
             ImagePicker(image: $selectedImage, sourceType: .photoLibrary)
@@ -113,9 +136,11 @@ struct PostView: View {
         // Clear previous error message and reset isUploading
         errorMessage = ""
         isUploading = false
+        isScanning = true  // Show scanning indicator
         
         guard let selectedImage = selectedImage, let location = locationManager.location else {
             errorMessage = "No image selected or location not available."
+            isScanning = false // Hide scanning if validation fails
             return
         }
 
@@ -124,6 +149,7 @@ struct PostView: View {
         // First, analyze the image for humans
         analyzeImageForHumans(selectedImage) { isAllowed in
             DispatchQueue.main.async {
+                self.isScanning = false  // Hide scanning indicator
                 if isAllowed {
                     // No humans detected, proceed with the upload
                     let storageRef = Storage.storage().reference().child("images/\(UUID().uuidString).jpg")
@@ -184,6 +210,12 @@ struct PostView: View {
                 self.errorMessage = ""
                 self.selectedImage = nil
                 self.locationName = "" // Clear after upload
+                self.uploadSuccessMessage = "Image uploaded successfully!" // Show success message
+                
+                // Clear the success message after a delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    self.uploadSuccessMessage = ""
+                }
             }
             self.isUploading = false
         }
@@ -228,7 +260,7 @@ struct PostView: View {
             let detectedLabels = labels?.compactMap { $0["description"] as? String } ?? []
             
             // Check for human-related labels
-            let humanKeywords = ["person", "human", "face", "man", "woman", "people", "child", "forehead", "head", "body", "smile", "chin", "eyebrows", "baby", "guy", "girl", "boy", "lady", "gentleman"]
+            let humanKeywords = ["person", "human", "face", "man", "woman", "people", "child", "forehead", "head", "smile", "chin", "eyebrows", "baby", "guy", "girl", "boy", "lady", "gentleman"]
             let containsHuman = detectedLabels.contains { label in
                 humanKeywords.contains { keyword in
                     label.localizedCaseInsensitiveContains(keyword)
