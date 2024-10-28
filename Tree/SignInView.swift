@@ -2,14 +2,26 @@ import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
 
+// Custom TextField style modifier for consistent styling
+extension View {
+    func customTextFieldStyle() -> some View {
+        self
+            .padding()
+            .background(Color.white.opacity(0.2))
+            .cornerRadius(8)
+            .padding(.horizontal, 16)
+            .disableAutocorrection(true)
+    }
+}
+
 struct SignInView: View {
     @State private var isLoginMode = true
     @State private var email = ""
     @State private var password = ""
     @State private var confirmPassword = ""
     @State private var username = ""
-    @State private var firstName = "" // New first name field
-    @State private var lastName = "" // New last name field
+    @State private var firstName = ""
+    @State private var lastName = ""
     @State private var errorMessage = ""
     @State private var leafOffsetY: CGFloat = -200
     @State private var leafOpacity: Double = 1.0
@@ -26,7 +38,7 @@ struct SignInView: View {
                     Spacer()
 
                     ZStack {
-                        Text("Wander")
+                        Text("EcoTerra")
                             .font(.custom("Noteworthy", size: 50))
                             .foregroundColor(.white)
                             .shadow(color: .black.opacity(0.3), radius: 5, x: 2, y: 2)
@@ -62,61 +74,38 @@ struct SignInView: View {
                         VStack(spacing: 16) {
                             if !isLoginMode {
                                 TextField("First Name", text: $firstName)
-                                    .padding()
-                                    .background(Color.white.opacity(0.2))
-                                    .cornerRadius(8)
-                                    .padding(.horizontal, 16)
-                                    .disableAutocorrection(true)
+                                    .customTextFieldStyle()
 
                                 TextField("Last Name", text: $lastName)
-                                    .padding()
-                                    .background(Color.white.opacity(0.2))
-                                    .cornerRadius(8)
-                                    .padding(.horizontal, 16)
-                                    .disableAutocorrection(true)
+                                    .customTextFieldStyle()
 
                                 TextField("Username", text: $username)
-                                    .padding()
-                                    .background(Color.white.opacity(0.2))
+                                    .customTextFieldStyle()
                                     .autocapitalization(.none)
-                                    .cornerRadius(8)
-                                    .padding(.horizontal, 16)
-                                    .disableAutocorrection(true)
                             }
 
                             TextField("Email", text: $email)
-                                .padding()
+                                .customTextFieldStyle()
                                 .autocapitalization(.none)
-                                .background(Color.white.opacity(0.2))
-                                .cornerRadius(8)
-                                .padding(.horizontal, 16)
-                                .disableAutocorrection(true)
 
                             SecureField("Password", text: $password)
-                                .padding()
+                                .customTextFieldStyle()
                                 .autocapitalization(.none)
-                                .background(Color.white.opacity(0.2))
-                                .cornerRadius(8)
-                                .padding(.horizontal, 16)
+
+                            if !isLoginMode {
+                                SecureField("Confirm Password", text: $confirmPassword)
+                                    .customTextFieldStyle()
+                                    .autocapitalization(.none)
+                            }
 
                             if isLoginMode {
-                                // Forgot Password Button
                                 NavigationLink(destination: ResetPasswordView()) {
                                     Text("Forgot My Password?")
                                         .foregroundColor(.white)
                                         .underline()
-                                        .font(.footnote) // Smaller font
+                                        .font(.footnote)
                                 }
                                 .padding(.top, 4)
-                            }
-
-                            if !isLoginMode {
-                                SecureField("Confirm Password", text: $confirmPassword)
-                                    .padding()
-                                    .background(Color.white.opacity(0.2))
-                                    .autocapitalization(.none)
-                                    .cornerRadius(8)
-                                    .padding(.horizontal, 16)
                             }
 
                             Button(action: handleAction) {

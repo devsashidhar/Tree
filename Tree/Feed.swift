@@ -48,7 +48,7 @@ struct Feed: View {
                 VStack(spacing: 0) {
                     // Custom Header
                     HStack {
-                        Text("Wander")
+                        Text("EcoTerra")
                             .font(.custom("Noteworthy", size: 34))
                             .foregroundColor(.white)
                             .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
@@ -157,9 +157,6 @@ struct Feed: View {
                                                     .foregroundColor(likedPosts.contains(post.id) ? .red : .gray)
                                             }
                                             .padding(.trailing, 8)
-                                            Button("Send Test Notification") {
-                                                NotificationManager.shared.sendLikeNotification(totalLikes: 5)
-                                            }
 
                                             Button(action: {
                                                 initiateChat(with: post.userId)

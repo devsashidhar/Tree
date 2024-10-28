@@ -87,14 +87,15 @@ struct PostView: View {
                 // Display success message if any
                 if !uploadSuccessMessage.isEmpty {
                     Text(uploadSuccessMessage)
-                        .foregroundColor(.green)
+                        .foregroundColor(.black)
                         .padding(.top, 8)
                 }
 
                 // Display error message if any
                 if !errorMessage.isEmpty {
                     Text(errorMessage)
-                        .foregroundColor(.red)
+                        .foregroundColor(.black)
+                        //.fontWeight(.bold) // Make it bold for better visibility
                         .padding(.top, 8)
                 }
             }
@@ -183,7 +184,7 @@ struct PostView: View {
                     }
                 } else {
                     // Human detected, do not proceed with upload
-                    self.errorMessage = "No humans allowed in the image."
+                    self.errorMessage = "Only images of pure nature or wildlife are allowed — no people or human-made objects."
                     self.isUploading = false
                 }
             }
@@ -234,7 +235,10 @@ struct PostView: View {
             "requests": [
                 [
                     "image": ["content": base64Image],
-                    "features": [["type": "LABEL_DETECTION"]]
+                    "features": [
+                        ["type": "LABEL_DETECTION"],
+                        ["type": "FACE_DETECTION"]
+                    ]
                 ]
             ]
         ]
@@ -248,30 +252,32 @@ struct PostView: View {
                 return
             }
             
-            // Print the raw JSON response to inspect its structure
-            if let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
-                print("Full JSON response: \(json)")
-            } else {
-                print("Failed to parse JSON response.")
-            }
-            
             let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            print("Full JSON response: \(json ?? [:])")
+            
             let labels = (json?["responses"] as? [[String: Any]])?.first?["labelAnnotations"] as? [[String: Any]]
+            let faces = (json?["responses"] as? [[String: Any]])?.first?["faceAnnotations"] as? [[String: Any]]
+
             let detectedLabels = labels?.compactMap { $0["description"] as? String } ?? []
             
-            // Check for human-related labels
-            let humanKeywords = ["person", "human", "face", "man", "woman", "people", "child", "forehead", "head", "smile", "chin", "eyebrows", "baby", "guy", "girl", "boy", "lady", "gentleman"]
-            let containsHuman = detectedLabels.contains { label in
-                humanKeywords.contains { keyword in
+            let nonNatureKeywords = [
+                "person", "human", "face", "forehead", "smile", "chin", "eyebrows", "nose", "mouth",
+                "building", "house", "car", "vehicle", "road", "street", "city", "architecture",
+                "monument", "airplane", "ship", "bridge", "statue", "fountain", "train", "traffic",
+                "wall", "fence", "sidewalk"
+            ]
+            
+            let containsNonNature = detectedLabels.contains { label in
+                nonNatureKeywords.contains { keyword in
                     label.localizedCaseInsensitiveContains(keyword)
                 }
-            }
-            
-            // Allow upload if no human-related labels are detected
-            completion(!containsHuman)
-        }.resume()
+            } || !(faces?.isEmpty ?? true)
 
+            // Allow upload if there is no human, no restricted labels, and no faces
+            completion(!containsNonNature)
+        }.resume()
     }
+
 
     
 }
