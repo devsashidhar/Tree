@@ -37,18 +37,18 @@
 
 /* Begin PBXFileReference section */
 		109BFB812CCC0C2400D8F16F /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
-		10D265F22CB8B37B00B55CBC /* Tree.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tree.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		10D266032CB8B37C00B55CBC /* TreeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		10D2660D2CB8B37C00B55CBC /* TreeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		10D265F22CB8B37B00B55CBC /* EcoTerra.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EcoTerra.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		10D266032CB8B37C00B55CBC /* EcoTerraTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EcoTerraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		10D2660D2CB8B37C00B55CBC /* EcoTerraUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EcoTerraUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		10F788F72CC9846B00B48AA0 /* Exceptions for "Tree" folder in "Tree" target */ = {
+		10F788F72CC9846B00B48AA0 /* Exceptions for "Tree" folder in "EcoTerra" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 10D265F12CB8B37B00B55CBC /* Tree */;
+			target = 10D265F12CB8B37B00B55CBC /* EcoTerra */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -56,7 +56,7 @@
 		10D265F42CB8B37B00B55CBC /* Tree */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				10F788F72CC9846B00B48AA0 /* Exceptions for "Tree" folder in "Tree" target */,
+				10F788F72CC9846B00B48AA0 /* Exceptions for "Tree" folder in "EcoTerra" target */,
 			);
 			path = Tree;
 			sourceTree = "<group>";
@@ -120,9 +120,9 @@
 		10D265F32CB8B37B00B55CBC /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				10D265F22CB8B37B00B55CBC /* Tree.app */,
-				10D266032CB8B37C00B55CBC /* TreeTests.xctest */,
-				10D2660D2CB8B37C00B55CBC /* TreeUITests.xctest */,
+				10D265F22CB8B37B00B55CBC /* EcoTerra.app */,
+				10D266032CB8B37C00B55CBC /* EcoTerraTests.xctest */,
+				10D2660D2CB8B37C00B55CBC /* EcoTerraUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -130,9 +130,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		10D265F12CB8B37B00B55CBC /* Tree */ = {
+		10D265F12CB8B37B00B55CBC /* EcoTerra */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 10D266172CB8B37C00B55CBC /* Build configuration list for PBXNativeTarget "Tree" */;
+			buildConfigurationList = 10D266172CB8B37C00B55CBC /* Build configuration list for PBXNativeTarget "EcoTerra" */;
 			buildPhases = (
 				10D265EE2CB8B37B00B55CBC /* Sources */,
 				10D265EF2CB8B37B00B55CBC /* Frameworks */,
@@ -145,7 +145,7 @@
 			fileSystemSynchronizedGroups = (
 				10D265F42CB8B37B00B55CBC /* Tree */,
 			);
-			name = Tree;
+			name = EcoTerra;
 			packageProductDependencies = (
 				10D266212CB8B4FE00B55CBC /* FirebaseAuth */,
 				10D266232CB8B4FE00B55CBC /* FirebaseFirestore */,
@@ -155,12 +155,12 @@
 				109BFB832CCC1B8500D8F16F /* FirebaseMessaging */,
 			);
 			productName = Tree;
-			productReference = 10D265F22CB8B37B00B55CBC /* Tree.app */;
+			productReference = 10D265F22CB8B37B00B55CBC /* EcoTerra.app */;
 			productType = "com.apple.product-type.application";
 		};
-		10D266022CB8B37C00B55CBC /* TreeTests */ = {
+		10D266022CB8B37C00B55CBC /* EcoTerraTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 10D2661A2CB8B37C00B55CBC /* Build configuration list for PBXNativeTarget "TreeTests" */;
+			buildConfigurationList = 10D2661A2CB8B37C00B55CBC /* Build configuration list for PBXNativeTarget "EcoTerraTests" */;
 			buildPhases = (
 				10D265FF2CB8B37C00B55CBC /* Sources */,
 				10D266002CB8B37C00B55CBC /* Frameworks */,
@@ -174,17 +174,17 @@
 			fileSystemSynchronizedGroups = (
 				10D266062CB8B37C00B55CBC /* TreeTests */,
 			);
-			name = TreeTests;
+			name = EcoTerraTests;
 			packageProductDependencies = (
 				109BFB852CCC1BE500D8F16F /* FirebaseMessaging */,
 			);
 			productName = TreeTests;
-			productReference = 10D266032CB8B37C00B55CBC /* TreeTests.xctest */;
+			productReference = 10D266032CB8B37C00B55CBC /* EcoTerraTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		10D2660C2CB8B37C00B55CBC /* TreeUITests */ = {
+		10D2660C2CB8B37C00B55CBC /* EcoTerraUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 10D2661D2CB8B37C00B55CBC /* Build configuration list for PBXNativeTarget "TreeUITests" */;
+			buildConfigurationList = 10D2661D2CB8B37C00B55CBC /* Build configuration list for PBXNativeTarget "EcoTerraUITests" */;
 			buildPhases = (
 				10D266092CB8B37C00B55CBC /* Sources */,
 				10D2660A2CB8B37C00B55CBC /* Frameworks */,
@@ -198,12 +198,12 @@
 			fileSystemSynchronizedGroups = (
 				10D266102CB8B37C00B55CBC /* TreeUITests */,
 			);
-			name = TreeUITests;
+			name = EcoTerraUITests;
 			packageProductDependencies = (
 				109BFB872CCC1BFA00D8F16F /* FirebaseMessaging */,
 			);
 			productName = TreeUITests;
-			productReference = 10D2660D2CB8B37C00B55CBC /* TreeUITests.xctest */;
+			productReference = 10D2660D2CB8B37C00B55CBC /* EcoTerraUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -229,7 +229,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 10D265ED2CB8B37B00B55CBC /* Build configuration list for PBXProject "Tree" */;
+			buildConfigurationList = 10D265ED2CB8B37B00B55CBC /* Build configuration list for PBXProject "EcoTerra" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -247,9 +247,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				10D265F12CB8B37B00B55CBC /* Tree */,
-				10D266022CB8B37C00B55CBC /* TreeTests */,
-				10D2660C2CB8B37C00B55CBC /* TreeUITests */,
+				10D265F12CB8B37B00B55CBC /* EcoTerra */,
+				10D266022CB8B37C00B55CBC /* EcoTerraTests */,
+				10D2660C2CB8B37C00B55CBC /* EcoTerraUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -306,12 +306,12 @@
 /* Begin PBXTargetDependency section */
 		10D266052CB8B37C00B55CBC /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 10D265F12CB8B37B00B55CBC /* Tree */;
+			target = 10D265F12CB8B37B00B55CBC /* EcoTerra */;
 			targetProxy = 10D266042CB8B37C00B55CBC /* PBXContainerItemProxy */;
 		};
 		10D2660F2CB8B37C00B55CBC /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 10D265F12CB8B37B00B55CBC /* Tree */;
+			target = 10D265F12CB8B37B00B55CBC /* EcoTerra */;
 			targetProxy = 10D2660E2CB8B37C00B55CBC /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -436,14 +436,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Tree/Tree.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = Tree/TreeDebug.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"Tree/Preview Content\"";
-				DEVELOPMENT_TEAM = 8VTQGBLVQB;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 8VTQGBLVQB;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Tree/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = EcoTerra;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We need your location to show relevant photos nearby";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -460,14 +464,16 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.dev.tree;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dev.ecoterra;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = SecondTakeDevelopment;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				XROS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Debug;
@@ -478,13 +484,16 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Tree/Tree.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Tree/Preview Content\"";
-				DEVELOPMENT_TEAM = 8VTQGBLVQB;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 8VTQGBLVQB;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Tree/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = EcoTerra;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We need your location to show relevant photos nearby";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -501,14 +510,16 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.dev.tree;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dev.ecoterra;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = WhyDistribution;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				XROS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Release;
@@ -530,7 +541,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tree.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tree";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EcoTerra.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/EcoTerra";
 				XROS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Debug;
@@ -552,7 +563,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tree.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tree";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EcoTerra.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/EcoTerra";
 				XROS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Release;
@@ -602,7 +613,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		10D265ED2CB8B37B00B55CBC /* Build configuration list for PBXProject "Tree" */ = {
+		10D265ED2CB8B37B00B55CBC /* Build configuration list for PBXProject "EcoTerra" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				10D266152CB8B37C00B55CBC /* Debug */,
@@ -611,7 +622,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		10D266172CB8B37C00B55CBC /* Build configuration list for PBXNativeTarget "Tree" */ = {
+		10D266172CB8B37C00B55CBC /* Build configuration list for PBXNativeTarget "EcoTerra" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				10D266182CB8B37C00B55CBC /* Debug */,
@@ -620,7 +631,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		10D2661A2CB8B37C00B55CBC /* Build configuration list for PBXNativeTarget "TreeTests" */ = {
+		10D2661A2CB8B37C00B55CBC /* Build configuration list for PBXNativeTarget "EcoTerraTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				10D2661B2CB8B37C00B55CBC /* Debug */,
@@ -629,7 +640,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		10D2661D2CB8B37C00B55CBC /* Build configuration list for PBXNativeTarget "TreeUITests" */ = {
+		10D2661D2CB8B37C00B55CBC /* Build configuration list for PBXNativeTarget "EcoTerraUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				10D2661E2CB8B37C00B55CBC /* Debug */,

@@ -148,7 +148,7 @@ struct PostView: View {
         isUploading = true
 
         // First, analyze the image for humans
-        analyzeImageForHumans(selectedImage) { isAllowed in
+        analyzeImageForHumansAndInappropContent(selectedImage) { isAllowed in
             DispatchQueue.main.async {
                 self.isScanning = false  // Hide scanning indicator
                 if isAllowed {
@@ -222,7 +222,7 @@ struct PostView: View {
         }
     }
     
-    func analyzeImageForHumans(_ image: UIImage, completion: @escaping (Bool) -> Void) {
+    func analyzeImageForHumansAndInappropContent(_ image: UIImage, completion: @escaping (Bool) -> Void) {
         guard let imageData = image.jpegData(compressionQuality: 0.8) else { return }
         let base64Image = imageData.base64EncodedString()
         let url = URL(string: "https://vision.googleapis.com/v1/images:annotate?key=AIzaSyDnVii14FsV_9UkERduhvJYTobWRhiRpes")!
@@ -237,7 +237,8 @@ struct PostView: View {
                     "image": ["content": base64Image],
                     "features": [
                         ["type": "LABEL_DETECTION"],
-                        ["type": "FACE_DETECTION"]
+                        ["type": "FACE_DETECTION"],
+                        ["type": "SAFE_SEARCH_DETECTION"] // Add SafeSearch Detection
                     ]
                 ]
             ]
@@ -254,6 +255,24 @@ struct PostView: View {
             
             let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
             print("Full JSON response: \(json ?? [:])")
+            
+            // Extract SafeSearch results
+            if let safeSearch = (json?["responses"] as? [[String: Any]])?.first?["safeSearchAnnotation"] as? [String: String] {
+                let adultContent = safeSearch["adult"] ?? "UNKNOWN"
+                let violenceContent = safeSearch["violence"] ?? "UNKNOWN"
+                let racyContent = safeSearch["racy"] ?? "UNKNOWN"
+                
+                // Reject if any objectionable content is likely or very likely
+                if adultContent == "LIKELY" || adultContent == "VERY_LIKELY" ||
+                   violenceContent == "LIKELY" || violenceContent == "VERY_LIKELY" ||
+                   racyContent == "LIKELY" || racyContent == "VERY_LIKELY" {
+                    DispatchQueue.main.async {
+                        self.errorMessage = "This image doesn’t meet our content guidelines. Please ensure that your upload contains only natural scenery and is free from any objectionable or inappropriate content."
+                    }
+                    completion(false)
+                    return
+                }
+            }
             
             let labels = (json?["responses"] as? [[String: Any]])?.first?["labelAnnotations"] as? [[String: Any]]
             let faces = (json?["responses"] as? [[String: Any]])?.first?["faceAnnotations"] as? [[String: Any]]
@@ -273,11 +292,10 @@ struct PostView: View {
                 }
             } || !(faces?.isEmpty ?? true)
 
-            // Allow upload if there is no human, no restricted labels, and no faces
+            // Allow upload if there is no human, no restricted labels, no faces, and no objectionable content
             completion(!containsNonNature)
         }.resume()
     }
-
 
     
 }
