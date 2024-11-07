@@ -48,6 +48,14 @@ struct Feed: View {
     @State private var showFirstBlockConfirmation = false
     @State private var showSecondBlockConfirmation = false
     @State private var selectedUserIdToBlock: String? = nil
+    
+    @State private var selectedUserIdToFlag: String? // To track the user ID to flag
+    @State private var showFlagConfirmation: Bool = false // To control the display of the flag confirmation alert
+    
+    @State private var selectedPostIdToFlag: String? = nil // Holds the post ID for flagging confirmation
+    
+    @State private var flaggedPosts: Set<String> = [] // Track flagged posts
+
 
     var body: some View {
         NavigationView {
@@ -146,14 +154,47 @@ struct Feed: View {
 
                                             Spacer()
 
-                                            // Block Button
-                                            Button(action: {
-                                                selectedUserIdToBlock = post.userId
-                                                showBlockConfirmation = true // Show confirmation dialog
-                                            }) {
-                                                Image(systemName: "hand.raised.fill") // Replace with chosen block icon
+                                            // Menu with three dots for additional actions
+                                            Menu {
+                                                // Block option
+                                                Button(action: {
+                                                    selectedUserIdToBlock = post.userId
+                                                    showBlockConfirmation = true // Show block confirmation
+                                                }) {
+                                                    Label("Block", systemImage: "hand.raised.fill") // Hand icon for block
+                                                }
+
+                                                // Flag option
+                                                    Button(action: {
+                                                        if flaggedPosts.contains(post.id) {
+                                                            // Unflag the post
+                                                            flaggedPosts.remove(post.id)
+                                                            unflagContent(post.id) // Optional: if you have an unflag function
+                                                            print("Post unflagged. Current flagged posts: \(flaggedPosts)")
+                                                        } else {
+                                                            // Flag the post
+                                                            flaggedPosts.insert(post.id)
+                                                            selectedUserIdToFlag = post.userId
+                                                            selectedPostIdToFlag = post.id
+                                                            showFlagConfirmation = true // Show flag confirmation
+                                                            flagContent(post.id, offendingUserId: post.userId)
+                                                            print("Post flagged. Current flagged posts: \(flaggedPosts)")
+                                                        }
+                                                    }) {
+                                                        // Conditionally show filled or outlined flag icon
+                                                        if flaggedPosts.contains(post.id) {
+                                                            Label("Flag", systemImage: "flag.fill") // Black filled flag
+                                                                .foregroundColor(.black)
+                                                        } else {
+                                                            Label("Flag", systemImage: "flag") // Gray outlined flag
+                                                                .foregroundColor(.gray)
+                                                        }
+                                                    }
+
+                                            } label: {
+                                                Image(systemName: "ellipsis.circle")
                                                     .resizable()
-                                                    .frame(width: 20, height: 20)
+                                                    .frame(width: 16, height: 16)
                                                     .foregroundColor(.gray)
                                             }
 
@@ -231,8 +272,7 @@ struct Feed: View {
                         })
                     )
                 }
-
-
+                
                 // Full-screen cover for chat
                 .fullScreenCover(item: $selectedChatId) { chatIdentifier in
                     let otherUserId = chatIdentifier.userIds.first { $0 != Auth.auth().currentUser!.uid } ?? ""
@@ -245,6 +285,61 @@ struct Feed: View {
             fetchPosts()
         }
     }
+
+    
+    func flagContent(_ postId: String, offendingUserId: String) {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+
+        // Reference to the "flaggedPosts" collection
+        let db = Firestore.firestore()
+        let flaggedPostRef = db.collection("flaggedPosts").document(postId)
+
+        // Data to store in Firestore for tracking flagged content
+        let flagData: [String: Any] = [
+            "flaggedByUserId": currentUserId,       // The ID of the user who flagged the post
+            "offendingUserId": offendingUserId,     // The ID of the user who posted the flagged content
+            "postId": postId,                       // The ID of the flagged post
+            "timestamp": FieldValue.serverTimestamp() // Timestamp of when the flag was created
+        ]
+
+        // Add the flagged post entry to Firestore
+        flaggedPostRef.setData(flagData) { error in
+            if let error = error {
+                print("Error flagging post: \(error)")
+            } else {
+                print("Post successfully flagged and saved to Firestore.")
+            }
+        }
+    }
+
+    
+    func unflagContent(_ postId: String) {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        
+        // Reference to the Firestore collection where flags are stored (assuming "flaggedContent")
+        let db = Firestore.firestore().collection("flaggedContent")
+        
+        // Find the document where the current user flagged this post
+        db.whereField("postId", isEqualTo: postId)
+          .whereField("flaggedByUserId", isEqualTo: currentUserId)
+          .getDocuments { snapshot, error in
+            if let error = error {
+                print("Error unflagging content: \(error.localizedDescription)")
+            } else if let document = snapshot?.documents.first {
+                // Remove the flag by deleting the document
+                db.document(document.documentID).delete { error in
+                    if let error = error {
+                        print("Error deleting flag document: \(error.localizedDescription)")
+                    } else {
+                        print("Content successfully unflagged.")
+                        // Optionally remove from flaggedPosts array for UI update
+                        flaggedPosts.remove(postId)
+                    }
+                }
+            }
+        }
+    }
+
 
     
     // Function to fetch unread messages count
