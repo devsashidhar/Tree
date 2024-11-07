@@ -39,6 +39,15 @@ struct Feed: View {
     @State private var isMessageCenterPresented = false
     @State private var unreadMessagesCount: Int = 0 // Unread messages count
     @State private var likedPosts: Set<String> = [] // Track liked posts for the current session
+    
+    // blocking
+    @State private var blockedUsers: [String] = [] // Track blocked users persistently
+    @State private var showBlockConfirmation: Bool = false // Show confirmation message after blocking
+    @State private var recentlyBlockedUser: String? // Track the recently blocked user to allow immediate unblocking
+
+    @State private var showFirstBlockConfirmation = false
+    @State private var showSecondBlockConfirmation = false
+    @State private var selectedUserIdToBlock: String? = nil
 
     var body: some View {
         NavigationView {
@@ -78,10 +87,10 @@ struct Feed: View {
                             }
                         }
                         .fullScreenCover(isPresented: $isMessageCenterPresented) {
-                            NavigationView { // Embed MessagingCenterView in a NavigationView
+                            NavigationView {
                                 MessagingCenterView(currentUserId: Auth.auth().currentUser?.uid ?? "")
                             }
-                            .navigationViewStyle(StackNavigationViewStyle()) // Use stack style for consistent behavior
+                            .navigationViewStyle(StackNavigationViewStyle())
                         }
                     }
                     .padding()
@@ -102,7 +111,7 @@ struct Feed: View {
                         }
                         .frame(maxHeight: .infinity)
                     } else if posts.isEmpty && allPostsViewed {
-                        // Show "You're all caught up!" message when no more posts are available
+                        // Show "You're all caught up!" message
                         VStack {
                             Image(systemName: "checkmark.circle.fill")
                                 .resizable()
@@ -126,12 +135,28 @@ struct Feed: View {
                         // Scrollable feed content below the fixed header
                         ScrollView {
                             LazyVStack {
-                                ForEach(posts) { post in
+                                ForEach(posts.filter { !blockedUsers.contains($0.userId) }) { post in
                                     VStack(alignment: .leading, spacing: 10) {
-                                        NavigationLink(destination: UserPostsView(userId: post.userId)) {
-                                            Text("Posted by: \(users[post.userId] ?? "Unknown")")
-                                                .font(.caption)
-                                                .foregroundColor(.blue)
+                                        HStack {
+                                            NavigationLink(destination: UserPostsView(userId: post.userId)) {
+                                                Text("Posted by: \(users[post.userId] ?? "Unknown")")
+                                                    .font(.caption)
+                                                    .foregroundColor(.blue)
+                                            }
+
+                                            Spacer()
+
+                                            // Block Button
+                                            Button(action: {
+                                                selectedUserIdToBlock = post.userId
+                                                showBlockConfirmation = true // Show confirmation dialog
+                                            }) {
+                                                Image(systemName: "hand.raised.fill") // Replace with chosen block icon
+                                                    .resizable()
+                                                    .frame(width: 20, height: 20)
+                                                    .foregroundColor(.gray)
+                                            }
+
                                         }
 
                                         Text("Location: \(post.locationName)")
@@ -144,8 +169,9 @@ struct Feed: View {
                                             .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
                                             .clipShape(RoundedRectangle(cornerRadius: 10))
                                             .onTapGesture(count: 2) {
-                                                    likePost(post) // Double tap gesture to like the picture
+                                                likePost(post) // Double tap gesture to like the picture
                                             }
+                                        
                                         // Messaging Button
                                         HStack {
                                             Button(action: {
@@ -179,11 +205,11 @@ struct Feed: View {
                                     .padding(.vertical, 5)
                                     .background(Color.black)
                                     .onAppear {
-                                        markPostAsViewed(post) // Mark post as viewed when it appears
+                                        markPostAsViewed(post)
                                     }
                                 }
                             }
-                            .padding(.top, 10) // Add some spacing between the header and content
+                            .padding(.top, 10)
                         }
                         .refreshable {
                             refreshFeed()
@@ -191,12 +217,27 @@ struct Feed: View {
                     }
 
                 }
+                .alert(isPresented: $showBlockConfirmation) {
+                    Alert(
+                        title: Text("Block user?"),
+                        message: Text("Do you want to block this user?"),
+                        primaryButton: .default(Text("Yes"), action: {
+                            if let userId = selectedUserIdToBlock {
+                                blockUser(userId)
+                            }
+                        }),
+                        secondaryButton: .cancel(Text("No"), action: {
+                            showBlockConfirmation = false // Reset to close the alert
+                        })
+                    )
+                }
+
+
+                // Full-screen cover for chat
                 .fullScreenCover(item: $selectedChatId) { chatIdentifier in
-                    // Get the receiverId by finding the other user in the chat (i.e., not the current user)
                     let otherUserId = chatIdentifier.userIds.first { $0 != Auth.auth().currentUser!.uid } ?? ""
                     ChatView(chatId: chatIdentifier.id, currentUserId: Auth.auth().currentUser!.uid, receiverId: otherUserId)
                 }
-
             }
         }
         .onAppear {
@@ -205,7 +246,7 @@ struct Feed: View {
         }
     }
 
-
+    
     // Function to fetch unread messages count
     func fetchUnreadMessages() {
         guard let userId = Auth.auth().currentUser?.uid else { return }
@@ -240,6 +281,52 @@ struct Feed: View {
         }
     }
 
+    private func blockUser(_ userId: String) {
+            guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+            let userRef = Firestore.firestore().collection("users").document(currentUserId)
+            
+            userRef.updateData([
+                "blockedUsers": FieldValue.arrayUnion([userId])
+            ]) { error in
+                if let error = error {
+                    print("Error blocking user: \(error)")
+                } else {
+                    blockedUsers.append(userId) // Update local state
+                    showBlockConfirmation = false // Show alert
+                    selectedUserIdToBlock = nil // Clear the selected user ID
+                }
+            }
+    }
+
+    private func unblockUser(_ userId: String) {
+            guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+            let userRef = Firestore.firestore().collection("users").document(currentUserId)
+            
+            userRef.updateData([
+                "blockedUsers": FieldValue.arrayRemove([userId])
+            ]) { error in
+                if let error = error {
+                    print("Error unblocking user: \(error)")
+                } else {
+                    blockedUsers.removeAll { $0 == userId } // Update local state
+                }
+            }
+    }
+    
+    private func fetchBlockedUsers() {
+            guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+            let userRef = Firestore.firestore().collection("users").document(currentUserId)
+
+            userRef.getDocument { snapshot, error in
+                if let error = error {
+                    print("Error fetching blocked users: \(error)")
+                    return
+                }
+                if let data = snapshot?.data(), let blocked = data["blockedUsers"] as? [String] {
+                    blockedUsers = blocked
+                }
+            }
+    }
 
 
     // Refresh feed functionality
@@ -252,7 +339,7 @@ struct Feed: View {
         isRefreshing = false
     }
 
-    // Fetch posts function
+    // Fetch posts function with integrated blocked users check
     func fetchPosts() {
         guard let userId = Auth.auth().currentUser?.uid else {
             print("Error: No authenticated user")
@@ -264,30 +351,34 @@ struct Feed: View {
         userRef.getDocument { (snapshot, error) in
             if let error = error {
                 print("Error fetching user document: \(error)")
-                fetchAllPosts()
+                fetchAllPosts(blockedUsers: blockedUsers)
                 return
             }
 
-            guard let data = snapshot?.data(), let viewedPosts = data["viewedPosts"] as? [String] else {
-                print("No viewed posts found or user document does not exist, fetching all posts")
-                fetchAllPosts()
+            guard let data = snapshot?.data() else {
+                print("User document does not exist, fetching all posts")
+                fetchAllPosts(blockedUsers: blockedUsers)
                 return
             }
 
+            // Fetch blocked users list from the user document
+            let blockedUsers = data["blockedUsers"] as? [String] ?? []
+            
+            // Fetch viewed posts list from the user document
+            let viewedPosts = data["viewedPosts"] as? [String] ?? []
+            
             if viewedPosts.isEmpty {
-                fetchAllPosts()
+                fetchAllPosts(blockedUsers: blockedUsers)
             } else {
-                fetchUnviewedPosts(notIn: viewedPosts)
+                fetchUnviewedPosts(notIn: viewedPosts, blockedUsers: blockedUsers)
             }
         }
     }
 
-    func fetchUnviewedPosts(notIn viewedPosts: [String]) {
-        print("Fetching unviewed posts...")
-
+    func fetchUnviewedPosts(notIn viewedPosts: [String], blockedUsers: [String]) {
         if viewedPosts.count > 10 {
             print("Viewed posts exceed 10, fetching all posts and filtering locally...")
-            fetchAndFilterAllPosts(viewedPosts: viewedPosts)
+            fetchAndFilterAllPosts(viewedPosts: viewedPosts, blockedUsers: blockedUsers)
         } else {
             Firestore.firestore().collection("posts")
                 .whereField(FieldPath.documentID(), notIn: viewedPosts)
@@ -306,11 +397,11 @@ struct Feed: View {
                     }
 
                     var fetchedPosts: [Post] = []
-
                     for document in documents {
                         let data = document.data()
 
                         guard let userId = data["userId"] as? String,
+                              !blockedUsers.contains(userId), // Exclude blocked users
                               let imageUrl = data["imageUrl"] as? String,
                               let latitude = data["latitude"] as? Double,
                               let longitude = data["longitude"] as? Double,
@@ -342,7 +433,7 @@ struct Feed: View {
         }
     }
 
-    func fetchAndFilterAllPosts(viewedPosts: [String]) {
+    func fetchAndFilterAllPosts(viewedPosts: [String], blockedUsers: [String]) {
         Firestore.firestore().collection("posts").getDocuments { (snapshot, error) in
             if let error = error {
                 print("Error fetching posts: \(error)")
@@ -363,6 +454,7 @@ struct Feed: View {
                 let data = document.data()
 
                 guard let userId = data["userId"] as? String,
+                      !blockedUsers.contains(userId), // Exclude blocked users
                       let imageUrl = data["imageUrl"] as? String,
                       let latitude = data["latitude"] as? Double,
                       let longitude = data["longitude"] as? Double,
@@ -395,7 +487,7 @@ struct Feed: View {
         }
     }
 
-    func fetchAllPosts() {
+    func fetchAllPosts(blockedUsers: [String]) {
         Firestore.firestore().collection("posts").getDocuments { (snapshot, error) in
             if let error = error {
                 print("Error fetching posts: \(error)")
@@ -411,11 +503,11 @@ struct Feed: View {
             }
 
             var fetchedPosts: [Post] = []
-
             for document in documents {
                 let data = document.data()
 
                 guard let userId = data["userId"] as? String,
+                      !blockedUsers.contains(userId), // Filter out posts from blocked users
                       let imageUrl = data["imageUrl"] as? String,
                       let latitude = data["latitude"] as? Double,
                       let longitude = data["longitude"] as? Double,
