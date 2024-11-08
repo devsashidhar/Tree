@@ -130,7 +130,7 @@ struct AccountView: View {
             Alert(
                 title: Text("Delete Account"),
                 message: Text("Are you sure you want to permanently delete your account? This action cannot be undone."),
-                primaryButton: .destructive(Text("Delete"), action: deleteUserAccount),
+                primaryButton: .destructive(Text("Delete"), action: deleteAccount),
                 secondaryButton: .cancel()
             )
         }
@@ -164,44 +164,66 @@ struct AccountView: View {
     }
 
 
-    func deleteUserAccount() {
-        // Delete posts
-        Firestore.firestore().collection("posts")
-            .whereField("userId", isEqualTo: userId)
-            .getDocuments { snapshot, error in
+    func deleteAccount() {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+
+        // Step 1: Delete all posts made by the user
+        deleteUserPosts(for: userId) { error in
+            if let error = error {
+                print("Error deleting user posts: \(error)")
+                return
+            }
+            
+            // Step 2: Delete the user document from Firestore
+            Firestore.firestore().collection("users").document(userId).delete { error in
                 if let error = error {
-                    print("Error fetching posts to delete: \(error)")
+                    print("Error deleting user document: \(error)")
                     return
                 }
-                for document in snapshot?.documents ?? [] {
-                    document.reference.delete { error in
-                        if let error = error {
-                            print("Error deleting post \(document.documentID): \(error)")
-                        } else {
-                            print("Deleted post \(document.documentID)")
-                        }
+                
+                // Step 3: Delete the Firebase Auth account
+                Auth.auth().currentUser?.delete { authError in
+                    if let authError = authError {
+                        print("Error deleting user from Firebase Auth: \(authError)")
+                    } else {
+                        print("User account and posts deleted successfully.")
                     }
                 }
             }
-        
-        // Delete user document
-        Firestore.firestore().collection("users").document(userId).delete { error in
-            if let error = error {
-                print("Error deleting user document: \(error)")
-            } else {
-                print("User document deleted successfully.")
-            }
         }
+    }
 
-        // Delete Firebase Auth user
-        Auth.auth().currentUser?.delete { error in
+    
+    func deleteUserPosts(for userId: String, completion: @escaping (Error?) -> Void) {
+        let postsRef = Firestore.firestore().collection("posts")
+        
+        postsRef.whereField("userId", isEqualTo: userId).getDocuments { snapshot, error in
             if let error = error {
-                print("Error deleting Firebase Auth user: \(error)")
-            } else {
-                print("Firebase Auth user deleted successfully.")
+                completion(error)
+                return
+            }
+            
+            guard let documents = snapshot?.documents else {
+                completion(nil) // No posts found, so we're done
+                return
+            }
+            
+            let batch = Firestore.firestore().batch()
+            
+            for document in documents {
+                batch.deleteDocument(document.reference)
+            }
+            
+            batch.commit { batchError in
+                if let batchError = batchError {
+                    completion(batchError)
+                } else {
+                    completion(nil) // Successfully deleted all posts
+                }
             }
         }
     }
+
 
     // Fetch posts by the current user's userId
     func fetchUserPosts() {
