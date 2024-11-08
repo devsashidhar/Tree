@@ -25,6 +25,9 @@ struct SignInView: View {
     @State private var errorMessage = ""
     @State private var leafOffsetY: CGFloat = -200
     @State private var leafOpacity: Double = 1.0
+    
+    @State private var showEULA = false
+    @State private var agreedToEULA = false // Track agreement to EULA
 
     var body: some View {
         NavigationView {
@@ -107,17 +110,40 @@ struct SignInView: View {
                                 }
                                 .padding(.top, 4)
                             }
+                            
+                            if !isLoginMode {
+                                // EULA Agreement Section
+                                HStack {
+                                    Toggle(isOn: $agreedToEULA) {
+                                        HStack {
+                                            Text("I agree to the ")
+                                                .foregroundColor(.white)
+                                                .font(.footnote)
+                                            
+                                            Text("EULA")
+                                                .foregroundColor(.white)
+                                                .underline()
+                                                .font(.footnote)
+                                                .onTapGesture {
+                                                    showEULA.toggle() // Show EULA sheet
+                                                }
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                            }
 
                             Button(action: handleAction) {
                                 Text(isLoginMode ? "Sign In" : "Sign Up")
                                     .frame(width: 200)
                                     .padding()
-                                    .background(Color.green)
+                                    .background(isLoginMode ? Color.green : (agreedToEULA ? Color.green : Color.gray)) // Change color based on mode and agreement
                                     .foregroundColor(.white)
                                     .cornerRadius(20)
                                     .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 5)
                             }
                             .padding(.top, 16)
+                            .disabled(!isLoginMode && !agreedToEULA) // Disable if in Sign Up mode and EULA is not agreed
 
                             if !errorMessage.isEmpty {
                                 Text(errorMessage)
@@ -134,6 +160,9 @@ struct SignInView: View {
             }
             .navigationTitle(isLoginMode ? "Login" : "Signup")
             .navigationBarHidden(true)
+            .sheet(isPresented: $showEULA) {
+                EULAView()
+            }
         }
     }
 
