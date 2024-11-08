@@ -15,6 +15,7 @@ struct AccountView: View {
     @State private var username: String = "Unknown" // Default username value
     @State private var selectedImage: FullScreenImage? = nil // For showing the full-screen image
     @State private var isLoading = true // Loading state
+    @State private var showDeleteConfirmation = false // Track if delete confirmation alert is shown
 
     let columns = [
         GridItem(.flexible()),
@@ -32,21 +33,42 @@ struct AccountView: View {
                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     .scaleEffect(2) // Make the spinner larger
             } else {
-                VStack(spacing: 0) { // Reduced spacing
-                    // Title and subtitle section
-                    VStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    // Title and settings button in HStack for alignment
+                    HStack {
+                        Spacer()
+                        
                         Text("Your Gallery")
                             .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
-                            .frame(height: 40) // Explicit height for title
-                            .padding(.top, 20)
-
-                        Text("Tap to expand each image")
-                            .foregroundColor(.gray)
-                            .font(.system(size: 16))
-                            .frame(height: 20) // Explicit height for subtitle
-                            .padding(.bottom, 20) // Add space between the subtitle and the pictures
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity) // Center align title within the HStack
+                        
+                        Spacer()
+                        
+                        // Settings button with menu
+                        Menu {
+                            Button(role: .destructive) {
+                                showDeleteConfirmation = true
+                            } label: {
+                                Label("Delete Account", systemImage: "trash")
+                            }
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .foregroundColor(.white)
+                                .font(.system(size: 20)) // Smaller size for subtle appearance
+                        }
+                        .padding(.trailing, 5) // Adjust padding for alignment with title
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    
+                    // Subtitle with additional padding below the title
+                    Text("Tap to expand each image")
+                        .foregroundColor(.gray)
+                        .font(.system(size: 16))
+                        .padding(.top, 4) // Add slight space below the title
+                        .padding(.bottom, 20) // Add space between the subtitle and the pictures
 
                     if userPosts.isEmpty {
                         VStack {
