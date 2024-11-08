@@ -186,7 +186,13 @@ struct AccountView: View {
                     if let authError = authError {
                         print("Error deleting user from Firebase Auth: \(authError)")
                     } else {
-                        print("User account and posts deleted successfully.")
+                        // Navigate to the FarewellView after successful deletion
+                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                            if let window = windowScene.windows.first {
+                                window.rootViewController = UIHostingController(rootView: FarewellView())
+                                window.makeKeyAndVisible()
+                            }
+                        }
                     }
                 }
             }
