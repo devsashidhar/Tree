@@ -265,9 +265,6 @@ struct AccountView: View {
                         // Handle missing location name and provide a default value
                         let locationName = data["locationName"] as? String ?? "Unknown Location"
                         
-                        // Handle other fields, providing default values where needed
-                        let latitude = data["latitude"] as? Double ?? 0.0
-                        let longitude = data["longitude"] as? Double ?? 0.0
                         let timestamp = data["timestamp"] as? Timestamp ?? Timestamp(date: Date())
                         let likes = data["likes"] as? [String] ?? [] // Fetch the likes array from Firestore
 
@@ -277,8 +274,6 @@ struct AccountView: View {
                                         username: "Unknown", // Placeholder for now
                                         imageUrl: imageUrl,
                                         locationName: locationName,
-                                        latitude: latitude,
-                                        longitude: longitude,
                                         timestamp: timestamp,
                                         likes: likes) // Include likes here)
 

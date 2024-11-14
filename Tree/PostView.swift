@@ -5,7 +5,6 @@ import CoreLocation
 import FirebaseAuth
 
 struct PostView: View {
-    @ObservedObject var locationManager = LocationManager()
     @State private var selectedImage: UIImage? = nil
     @State private var showImagePicker = false
     @State private var errorMessage: String = ""
@@ -139,8 +138,9 @@ struct PostView: View {
         isUploading = false
         isScanning = true  // Show scanning indicator
         
-        guard let selectedImage = selectedImage, let location = locationManager.location else {
-            errorMessage = "No image selected or location not available."
+        // Ensure an image is selected and a location name is provided
+        guard let selectedImage = selectedImage, !locationName.isEmpty else {
+            errorMessage = "No image selected or location not provided."
             isScanning = false // Hide scanning if validation fails
             return
         }
@@ -179,7 +179,7 @@ struct PostView: View {
                             guard let imageUrl = url?.absoluteString else { return }
                             
                             // Save the post to Firestore with the image URL and location
-                            savePostToFirestore(imageUrl: imageUrl, location: location)
+                            savePostToFirestore(imageUrl: imageUrl)
                         }
                     }
                 } else {
@@ -193,14 +193,12 @@ struct PostView: View {
 
 
     // Save post to Firestore
-    func savePostToFirestore(imageUrl: String, location: CLLocation) {
+    func savePostToFirestore(imageUrl: String) {
         let db = Firestore.firestore()
         let data: [String: Any] = [
             "userId": Auth.auth().currentUser?.uid ?? "",
             "imageUrl": imageUrl,
             "locationName": locationName, // Save the location name
-            "latitude": location.coordinate.latitude,
-            "longitude": location.coordinate.longitude,
             "timestamp": Timestamp(date: Date())
         ]
 

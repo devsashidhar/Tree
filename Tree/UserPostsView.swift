@@ -117,8 +117,6 @@ struct UserPostsView: View {
                                         username: "Unknown",
                                         imageUrl: imageUrl,
                                         locationName: locationName,
-                                        latitude: latitude,
-                                        longitude: longitude,
                                         timestamp: timestamp)
                         fetchedPosts.append(post)
                     }

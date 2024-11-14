@@ -21,20 +21,16 @@ struct Post: Identifiable {
     var username: String
     var imageUrl: String
     var locationName: String
-    var latitude: Double
-    var longitude: Double
     var timestamp: Timestamp
     var likes: [String] = [] // Array to store user IDs of people who liked the post
 }
 
 struct Feed: View {
-    @ObservedObject var locationManager = LocationManager()
     @State private var posts: [Post] = []
     @State private var users: [String: String] = [:]
     @State private var isRefreshing = false
     @State private var allPostsViewed = false
     @State private var isLoading = false
-    @State private var distanceFilter: Int = 10
     @State private var selectedChatId: ChatIdentifier? // Use ChatIdentifier instead of String
     @State private var isMessageCenterPresented = false
     @State private var unreadMessagesCount: Int = 0 // Unread messages count
@@ -498,8 +494,6 @@ struct Feed: View {
                         guard let userId = data["userId"] as? String,
                               !blockedUsers.contains(userId), // Exclude blocked users
                               let imageUrl = data["imageUrl"] as? String,
-                              let latitude = data["latitude"] as? Double,
-                              let longitude = data["longitude"] as? Double,
                               let timestamp = data["timestamp"] as? Timestamp else {
                             continue
                         }
@@ -511,8 +505,6 @@ struct Feed: View {
                                         username: "Unknown",
                                         imageUrl: imageUrl,
                                         locationName: locationName,
-                                        latitude: latitude,
-                                        longitude: longitude,
                                         timestamp: timestamp)
 
                         fetchedPosts.append(post)
@@ -551,8 +543,6 @@ struct Feed: View {
                 guard let userId = data["userId"] as? String,
                       !blockedUsers.contains(userId), // Exclude blocked users
                       let imageUrl = data["imageUrl"] as? String,
-                      let latitude = data["latitude"] as? Double,
-                      let longitude = data["longitude"] as? Double,
                       let timestamp = data["timestamp"] as? Timestamp else {
                     continue
                 }
@@ -565,8 +555,6 @@ struct Feed: View {
                                     username: "Unknown",
                                     imageUrl: imageUrl,
                                     locationName: locationName,
-                                    latitude: latitude,
-                                    longitude: longitude,
                                     timestamp: timestamp)
 
                     fetchedPosts.append(post)
@@ -604,8 +592,6 @@ struct Feed: View {
                 guard let userId = data["userId"] as? String,
                       !blockedUsers.contains(userId), // Filter out posts from blocked users
                       let imageUrl = data["imageUrl"] as? String,
-                      let latitude = data["latitude"] as? Double,
-                      let longitude = data["longitude"] as? Double,
                       let timestamp = data["timestamp"] as? Timestamp else {
                     continue
                 }
@@ -617,8 +603,6 @@ struct Feed: View {
                                 username: "Unknown",
                                 imageUrl: imageUrl,
                                 locationName: locationName,
-                                latitude: latitude,
-                                longitude: longitude,
                                 timestamp: timestamp)
 
                 fetchedPosts.append(post)
