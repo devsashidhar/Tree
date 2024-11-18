@@ -140,7 +140,7 @@ struct TreeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            SignInView() // Set your initial view here
+            RootView() // Use RootView to decide which screen to show
         }
     }
 }

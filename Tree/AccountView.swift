@@ -53,6 +53,12 @@ struct AccountView: View {
                             } label: {
                                 Label("Delete Account", systemImage: "trash")
                             }
+                            // Sign-Out Option
+                            Button(action: {
+                                handleSignOut()
+                            }) {
+                                Label("Sign Out", systemImage: "arrowshape.turn.up.left")
+                            }
                         } label: {
                             Image(systemName: "gearshape")
                                 .foregroundColor(.white)
@@ -163,6 +169,20 @@ struct AccountView: View {
         })
     }
 
+    func handleSignOut() {
+        do {
+            try Auth.auth().signOut()
+            // Navigate back to the SignInView
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                if let window = windowScene.windows.first {
+                    window.rootViewController = UIHostingController(rootView: SignInView())
+                    window.makeKeyAndVisible()
+                }
+            }
+        } catch {
+            print("Failed to sign out: \(error.localizedDescription)")
+        }
+    }
 
     func deleteAccount() {
         guard let userId = Auth.auth().currentUser?.uid else { return }
