@@ -111,7 +111,7 @@ struct ChatView: View {
                 // Message input and send button
                 if !isBlocked && blockStatusChecked {
                     HStack {
-                        TextField("Type a message...", text: $messageText)
+                        TextField("Direct message the artist...", text: $messageText)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                         Button(action: {
                             sendMessage()

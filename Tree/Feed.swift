@@ -192,7 +192,7 @@ struct Feed: View {
                                             NavigationLink(destination: UserPostsView(userId: post.userId)) {
                                                 Text("Posted by: \(users[post.userId] ?? "Unknown")")
                                                     .font(.caption)
-                                                    .foregroundColor(.blue)
+                                                    .foregroundColor(Color.blue.opacity(0.7)) // Subtle blue shade
                                             }
                                             Spacer()
                                             Menu {
@@ -242,29 +242,21 @@ struct Feed: View {
 
 
                                         // Buttons Below the Photo
-                                        HStack {
+                                        HStack(spacing: 12) {
                                             Button(action: { likePost(post) }) {
                                                 Image(systemName: likedPosts.contains(post.id) ? "heart.fill" : "heart")
                                                     .resizable()
                                                     .frame(width: 16, height: 16)
                                                     .foregroundColor(likedPosts.contains(post.id) ? .red : .gray)
                                             }
-                                            .padding(.trailing, 8)
 
                                             Button(action: {
                                                 initiateChat(with: post.userId)
                                             }) {
-                                                HStack(spacing: 4) {
-                                                    Text("Message Artist")
-                                                        .font(.system(size: 8, weight: .semibold))
-                                                }
-                                                .foregroundColor(.white)
-                                                .padding(6)
-                                                .background(
-                                                    RoundedRectangle(cornerRadius: 8)
-                                                        .fill(Color.blue.opacity(0.8))
-                                                )
-                                                .shadow(color: Color.black.opacity(0.2), radius: 2, x: 1, y: 1)
+                                                Image(systemName: "message")
+                                                    .resizable()
+                                                    .frame(width: 16, height: 16)
+                                                    .foregroundColor(.gray)
                                             }
                                         }
                                     }
