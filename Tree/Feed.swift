@@ -14,42 +14,48 @@ struct ZoomableImageView: View {
 
     @State private var scale: CGFloat = 1.0
     @State private var offset: CGSize = .zero
+    @State private var lastOffset: CGSize = .zero
+    @State private var lastScale: CGFloat = 1.0
 
     var body: some View {
         GeometryReader { geometry in
-            ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                KFImage(URL(string: imageUrl))
-                    .resizable()
-                    .aspectRatio(contentMode: .fit) // Maintain aspect ratio
-                    .frame(maxWidth: geometry.size.width, maxHeight: geometry.size.height)
-                    .scaleEffect(scale)
-                    .offset(offset)
-                    .gesture(
-                        SimultaneousGesture(
-                            MagnificationGesture()
-                                .onChanged { value in
-                                    scale = value.magnitude
+            KFImage(URL(string: imageUrl))
+                .resizable()
+                .aspectRatio(contentMode: .fit) // Maintain aspect ratio
+                .frame(maxWidth: geometry.size.width, maxHeight: geometry.size.height)
+                .scaleEffect(scale)
+                .offset(offset)
+                .gesture(
+                    SimultaneousGesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                scale = lastScale * value.magnitude
+                            }
+                            .onEnded { _ in
+                                lastScale = scale
+                                if scale < 1.0 {
+                                    scale = 1.0
+                                    lastScale = 1.0
+                                    offset = .zero
+                                    lastOffset = .zero
                                 }
-                                .onEnded { _ in
-                                    if scale < 1.0 {
-                                        scale = 1.0 // Reset to normal scale
-                                    }
-                                },
-                            DragGesture()
-                                .onChanged { value in
-                                    offset = value.translation
-                                }
-                                .onEnded { _ in
-                                    offset = .zero // Reset position after drag
-                                }
-                        )
+                            },
+                        DragGesture()
+                            .onChanged { value in
+                                offset = CGSize(
+                                    width: lastOffset.width + value.translation.width,
+                                    height: lastOffset.height + value.translation.height
+                                )
+                            }
+                            .onEnded { _ in
+                                lastOffset = offset // Save the final offset
+                            }
                     )
-            }
+                )
         }
         .background(Color.black.edgesIgnoringSafeArea(.all))
     }
 }
-
 
 
 struct ChatIdentifier: Identifiable {
@@ -280,16 +286,11 @@ struct Feed: View {
                 .fullScreenCover(item: $selectedImage) { fullScreenImage in
                     ZStack {
                         Color.black.ignoresSafeArea()
-
-                        KFImage(URL(string: fullScreenImage.url))
-                            .resizable()
-                            .scaledToFit()
-                            .ignoresSafeArea() // Make the image occupy the entire screen
-
+                        ZoomableImageView(imageUrl: fullScreenImage.url)
                         VStack {
                             HStack {
                                 Button(action: {
-                                    selectedImage = nil // Dismiss the full-screen view
+                                    selectedImage = nil // Dismiss full-screen mode
                                 }) {
                                     Image(systemName: "arrow.left")
                                         .foregroundColor(.white)
@@ -298,7 +299,6 @@ struct Feed: View {
                                 }
                                 .padding(.leading, 20)
                                 .padding(.top, 40)
-
                                 Spacer()
                             }
                             Spacer()
