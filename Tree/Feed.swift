@@ -9,6 +9,49 @@ struct IdentifiableString: Identifiable {
     var id: String
 }
 
+struct ZoomableImageView: View {
+    let imageUrl: String
+
+    @State private var scale: CGFloat = 1.0
+    @State private var offset: CGSize = .zero
+
+    var body: some View {
+        GeometryReader { geometry in
+            ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                KFImage(URL(string: imageUrl))
+                    .resizable()
+                    .aspectRatio(contentMode: .fit) // Maintain aspect ratio
+                    .frame(maxWidth: geometry.size.width, maxHeight: geometry.size.height)
+                    .scaleEffect(scale)
+                    .offset(offset)
+                    .gesture(
+                        SimultaneousGesture(
+                            MagnificationGesture()
+                                .onChanged { value in
+                                    scale = value.magnitude
+                                }
+                                .onEnded { _ in
+                                    if scale < 1.0 {
+                                        scale = 1.0 // Reset to normal scale
+                                    }
+                                },
+                            DragGesture()
+                                .onChanged { value in
+                                    offset = value.translation
+                                }
+                                .onEnded { _ in
+                                    offset = .zero // Reset position after drag
+                                }
+                        )
+                    )
+            }
+        }
+        .background(Color.black.edgesIgnoringSafeArea(.all))
+    }
+}
+
+
+
 struct ChatIdentifier: Identifiable {
     var id: String
     var userIds: [String] // Add userIds to keep track of users in the chat
@@ -39,10 +82,7 @@ struct Feed: View {
     // blocking
     @State private var blockedUsers: [String] = [] // Track blocked users persistently
     @State private var showBlockConfirmation: Bool = false // Show confirmation message after blocking
-    @State private var recentlyBlockedUser: String? // Track the recently blocked user to allow immediate unblocking
-
-    @State private var showFirstBlockConfirmation = false
-    @State private var showSecondBlockConfirmation = false
+   
     @State private var selectedUserIdToBlock: String? = nil
     
     @State private var selectedUserIdToFlag: String? // To track the user ID to flag
@@ -51,8 +91,12 @@ struct Feed: View {
     @State private var selectedPostIdToFlag: String? = nil // Holds the post ID for flagging confirmation
     
     @State private var flaggedPosts: Set<String> = [] // Track flagged posts
+    
+    @State private var selectedImageUrl: String? // Track the selected image URL
+    
+    @State private var selectedImage: FullScreenImage? = nil // For showing the full-screen image
 
-
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -137,63 +181,44 @@ struct Feed: View {
                         .frame(maxHeight: .infinity)
                     } else {
                         // Scrollable feed content below the fixed header
+                        
                         ScrollView {
                             LazyVStack {
                                 ForEach(posts.filter { !blockedUsers.contains($0.userId) }) { post in
+                                    
                                     VStack(alignment: .leading, spacing: 10) {
+                                        // Username and Location Name Above the Photo
                                         HStack {
                                             NavigationLink(destination: UserPostsView(userId: post.userId)) {
                                                 Text("Posted by: \(users[post.userId] ?? "Unknown")")
                                                     .font(.caption)
                                                     .foregroundColor(.blue)
                                             }
-
                                             Spacer()
-
-                                            // Menu with three dots for additional actions
                                             Menu {
-                                                // Block option
                                                 Button(action: {
                                                     selectedUserIdToBlock = post.userId
-                                                    showBlockConfirmation = true // Show block confirmation
+                                                    showBlockConfirmation = true
                                                 }) {
-                                                    Label("Block", systemImage: "hand.raised.fill") // Hand icon for block
+                                                    Label("Block", systemImage: "hand.raised.fill")
                                                 }
-
-                                                // Flag option
-                                                    Button(action: {
-                                                        if flaggedPosts.contains(post.id) {
-                                                            // Unflag the post
-                                                            flaggedPosts.remove(post.id)
-                                                            unflagContent(post.id) // Optional: if you have an unflag function
-                                                            print("Post unflagged. Current flagged posts: \(flaggedPosts)")
-                                                        } else {
-                                                            // Flag the post
-                                                            flaggedPosts.insert(post.id)
-                                                            selectedUserIdToFlag = post.userId
-                                                            selectedPostIdToFlag = post.id
-                                                            showFlagConfirmation = true // Show flag confirmation
-                                                            flagContent(post.id, offendingUserId: post.userId)
-                                                            print("Post flagged. Current flagged posts: \(flaggedPosts)")
-                                                        }
-                                                    }) {
-                                                        // Conditionally show filled or outlined flag icon
-                                                        if flaggedPosts.contains(post.id) {
-                                                            Label("Flag", systemImage: "flag.fill") // Black filled flag
-                                                                .foregroundColor(.black)
-                                                        } else {
-                                                            Label("Flag", systemImage: "flag") // Gray outlined flag
-                                                                .foregroundColor(.gray)
-                                                        }
+                                                Button(action: {
+                                                    if flaggedPosts.contains(post.id) {
+                                                        flaggedPosts.remove(post.id)
+                                                        unflagContent(post.id)
+                                                    } else {
+                                                        flaggedPosts.insert(post.id)
+                                                        flagContent(post.id, offendingUserId: post.userId)
                                                     }
-
+                                                }) {
+                                                    Label(flaggedPosts.contains(post.id) ? "Unflag" : "Flag", systemImage: flaggedPosts.contains(post.id) ? "flag.fill" : "flag")
+                                                }
                                             } label: {
                                                 Image(systemName: "ellipsis.circle")
                                                     .resizable()
                                                     .frame(width: 16, height: 16)
                                                     .foregroundColor(.gray)
                                             }
-
                                         }
 
                                         Text("Location: \(post.locationName)")
@@ -202,18 +227,23 @@ struct Feed: View {
 
                                         KFImage(URL(string: post.imageUrl))
                                             .resizable()
-                                            .scaledToFill()
-                                            .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
-                                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                                            .onTapGesture(count: 2) {
-                                                likePost(post) // Double tap gesture to like the picture
-                                            }
-                                        
-                                        // Messaging Button
+                                            .aspectRatio(contentMode: .fit)
+                                            .frame(maxWidth: UIScreen.main.bounds.width - 20)
+                                            .gesture(
+                                                ExclusiveGesture(
+                                                    TapGesture(count: 2).onEnded {
+                                                        likePost(post) // Double tap to like
+                                                    },
+                                                    TapGesture(count: 1).onEnded {
+                                                        selectedImage = FullScreenImage(url: post.imageUrl) // Single tap for full screen
+                                                    }
+                                                )
+                                            )
+
+
+                                        // Buttons Below the Photo
                                         HStack {
-                                            Button(action: {
-                                                likePost(post)
-                                            }) {
+                                            Button(action: { likePost(post) }) {
                                                 Image(systemName: likedPosts.contains(post.id) ? "heart.fill" : "heart")
                                                     .resizable()
                                                     .frame(width: 16, height: 16)
@@ -238,12 +268,13 @@ struct Feed: View {
                                             }
                                         }
                                     }
-                                    .padding(.horizontal)
-                                    .padding(.vertical, 5)
-                                    .background(Color.black)
+                                    .padding(.horizontal) // Retain horizontal padding for consistent spacing
+                                    .padding(.vertical, 5) // Retain vertical padding for spacing between posts
+                                    .background(Color.black) // Maintain dark theme
                                     .onAppear {
-                                        markPostAsViewed(post)
+                                        markPostAsViewed(post) // Ensure posts are marked as viewed
                                     }
+
                                 }
                             }
                             .padding(.top, 10)
@@ -254,6 +285,35 @@ struct Feed: View {
                     }
 
                 }
+                .fullScreenCover(item: $selectedImage) { fullScreenImage in
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+
+                        KFImage(URL(string: fullScreenImage.url))
+                            .resizable()
+                            .scaledToFit()
+                            .ignoresSafeArea() // Make the image occupy the entire screen
+
+                        VStack {
+                            HStack {
+                                Button(action: {
+                                    selectedImage = nil // Dismiss the full-screen view
+                                }) {
+                                    Image(systemName: "arrow.left")
+                                        .foregroundColor(.white)
+                                        .padding()
+                                        .background(Circle().fill(Color.black.opacity(0.7)))
+                                }
+                                .padding(.leading, 20)
+                                .padding(.top, 40)
+
+                                Spacer()
+                            }
+                            Spacer()
+                        }
+                    }
+                }
+                
                 .alert(isPresented: $showBlockConfirmation) {
                     Alert(
                         title: Text("Block user?"),
