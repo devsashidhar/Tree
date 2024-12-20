@@ -14,7 +14,12 @@ struct MainTabView: View {
                     Image(systemName: "camera.fill")
                     Text("Post")
                 }
-
+            
+            SearchView()
+                .tabItem {
+                    Image(systemName: "magnifyingglass")
+                    Text("Search")
+                }
             AccountView()
                 .tabItem {
                     Image(systemName: "person.fill")

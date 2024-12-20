@@ -4,6 +4,7 @@ import FirebaseAuth
 struct RootView: View {
     @State private var isSignedIn: Bool = false
     @State private var isCheckingAuth = true
+    @StateObject private var followManager = FollowManager()
 
     var body: some View {
         Group {
@@ -13,9 +14,11 @@ struct RootView: View {
             } else if isSignedIn {
                 // If signed in, navigate to MainTabView
                 MainTabView()
+                    .environmentObject(followManager)
             } else {
                 // If not signed in, navigate to SignInView
                 SignInView()
+                    .environmentObject(followManager)
             }
         }
         .onAppear {

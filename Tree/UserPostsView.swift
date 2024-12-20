@@ -1,6 +1,7 @@
 import SwiftUI
 import FirebaseFirestore
 import Kingfisher
+import FirebaseAuth
 
 
 struct UserPostsView: View {
@@ -8,6 +9,8 @@ struct UserPostsView: View {
     @State private var userPosts: [Post] = []
     @State private var username: String = "Unknown" // Default username value
     @State private var selectedImage: FullScreenImage? = nil // For full-screen image display
+    
+    @EnvironmentObject var followManager: FollowManager
 
     let columns = [
         GridItem(.flexible()),
@@ -29,6 +32,32 @@ struct UserPostsView: View {
                         .foregroundColor(.gray)
                         .font(.system(size: 16)) // Smaller subtitle
                         .padding(.bottom, 10)
+                    
+                    if followManager.following.contains(userId) {
+                        Button(action: {
+                            removeFollower(newFollowerId: userId)
+                        }) {
+                            Text("Following")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                                .padding(6)
+                                .background(Color.green.opacity(0.2))
+                                .cornerRadius(6)
+                        }
+                        .buttonStyle(BorderlessButtonStyle()) // Prevent navigation when clicking the button
+                    } else {
+                        Button(action: {
+                            addFollower(newFollowerId: userId)
+                        }) {
+                            Text("Follow")
+                                .font(.caption)
+                                .foregroundColor(.white)
+                                .padding(6)
+                                .background(Color.blue)
+                                .cornerRadius(6)
+                        }
+                        .buttonStyle(BorderlessButtonStyle()) // Prevent navigation when clicking the button
+                    }
                 }
             if userPosts.isEmpty {
                 Text("No posts available for this user.")
@@ -87,6 +116,45 @@ struct UserPostsView: View {
         }
     }
 
+    private func addFollower(newFollowerId: String) {
+        let userId = Auth.auth().currentUser?.uid ?? ""
+
+        let userRef = Firestore.firestore().collection("users").document(userId)
+
+        userRef.updateData([
+            "following": FieldValue.arrayUnion([newFollowerId])
+        ]) { error in
+            if let error = error {
+                print("Error updating following list: \(error)")
+            } else {
+                print("Successfully updated following list with: \(newFollowerId)")
+                DispatchQueue.main.async {
+                    followManager.following.insert(newFollowerId) // Update local state to reflect UI changes
+                }
+            }
+        }
+    }
+    
+    
+    private func removeFollower(newFollowerId: String) {
+        let userId = Auth.auth().currentUser?.uid ?? ""
+
+        let userRef = Firestore.firestore().collection("users").document(userId)
+
+        userRef.updateData([
+            "following": FieldValue.arrayRemove([newFollowerId])
+        ]) { error in
+            if let error = error {
+                print("Error updating following list: \(error)")
+            } else {
+                print("Successfully updated following list with: \(newFollowerId)")
+                DispatchQueue.main.async {
+                    followManager.following.remove(newFollowerId) // Update local state to reflect UI changes
+                }
+            }
+        }
+    }
+    
     // Fetch posts for the given userId
     func fetchUserPosts() {
         Firestore.firestore().collection("posts")

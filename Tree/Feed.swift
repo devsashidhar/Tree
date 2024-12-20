@@ -190,8 +190,7 @@ struct Feed: View {
                         
                         ScrollView {
                             LazyVStack {
-                                ForEach(posts.filter { !blockedUsers.contains($0.userId) }) { post in
-                                    
+                                ForEach(posts) { post in
                                     VStack(alignment: .leading, spacing: 10) {
                                         // Username and Location Name Above the Photo
                                         HStack {
@@ -425,20 +424,21 @@ struct Feed: View {
     }
 
     private func blockUser(_ userId: String) {
-            guard let currentUserId = Auth.auth().currentUser?.uid else { return }
-            let userRef = Firestore.firestore().collection("users").document(currentUserId)
-            
-            userRef.updateData([
-                "blockedUsers": FieldValue.arrayUnion([userId])
-            ]) { error in
-                if let error = error {
-                    print("Error blocking user: \(error)")
-                } else {
-                    blockedUsers.append(userId) // Update local state
-                    showBlockConfirmation = false // Show alert
-                    selectedUserIdToBlock = nil // Clear the selected user ID
-                }
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        let userRef = Firestore.firestore().collection("users").document(currentUserId)
+        
+        userRef.updateData([
+            "blockedUsers": FieldValue.arrayUnion([userId]),
+            "following": FieldValue.arrayRemove([userId]) // Remove from following
+        ]) { error in
+            if let error = error {
+                print("Error blocking user: \(error)")
+            } else {
+                blockedUsers.append(userId) // Update local state
+                showBlockConfirmation = false
+                selectedUserIdToBlock = nil
             }
+        }
     }
 
     private func unblockUser(_ userId: String) {
@@ -446,31 +446,18 @@ struct Feed: View {
             let userRef = Firestore.firestore().collection("users").document(currentUserId)
             
             userRef.updateData([
-                "blockedUsers": FieldValue.arrayRemove([userId])
+                "blockedUsers": FieldValue.arrayRemove([userId]),
+                "following": FieldValue.arrayUnion([userId]) // Re-add to following
             ]) { error in
                 if let error = error {
                     print("Error unblocking user: \(error)")
                 } else {
                     blockedUsers.removeAll { $0 == userId } // Update local state
+                    print("User \(userId) successfully unblocked and re-added to following.")
                 }
             }
     }
     
-    private func fetchBlockedUsers() {
-            guard let currentUserId = Auth.auth().currentUser?.uid else { return }
-            let userRef = Firestore.firestore().collection("users").document(currentUserId)
-
-            userRef.getDocument { snapshot, error in
-                if let error = error {
-                    print("Error fetching blocked users: \(error)")
-                    return
-                }
-                if let data = snapshot?.data(), let blocked = data["blockedUsers"] as? [String] {
-                    blockedUsers = blocked
-                }
-            }
-    }
-
 
     // Refresh feed functionality
     func refreshFeed() {
@@ -480,230 +467,6 @@ struct Feed: View {
         posts.removeAll() // Clear existing posts
         fetchPosts() // Re-fetch posts
         isRefreshing = false
-    }
-
-    // Fetch posts function with integrated blocked users check
-    func fetchPosts() {
-        guard let userId = Auth.auth().currentUser?.uid else {
-            print("Error: No authenticated user")
-            isLoading = false
-            return
-        }
-
-        let userRef = Firestore.firestore().collection("users").document(userId)
-        userRef.getDocument { (snapshot, error) in
-            if let error = error {
-                print("Error fetching user document: \(error)")
-                fetchAllPosts(blockedUsers: blockedUsers)
-                return
-            }
-
-            guard let data = snapshot?.data() else {
-                print("User document does not exist, fetching all posts")
-                fetchAllPosts(blockedUsers: blockedUsers)
-                return
-            }
-
-            // Fetch blocked users list from the user document
-            let blockedUsers = data["blockedUsers"] as? [String] ?? []
-            
-            // Fetch viewed posts list from the user document
-            let viewedPosts = data["viewedPosts"] as? [String] ?? []
-            
-            if viewedPosts.isEmpty {
-                fetchAllPosts(blockedUsers: blockedUsers)
-            } else {
-                fetchUnviewedPosts(notIn: viewedPosts, blockedUsers: blockedUsers)
-            }
-        }
-    }
-
-    func fetchUnviewedPosts(notIn viewedPosts: [String], blockedUsers: [String]) {
-        if viewedPosts.count > 10 {
-            print("Viewed posts exceed 10, fetching all posts and filtering locally...")
-            fetchAndFilterAllPosts(viewedPosts: viewedPosts, blockedUsers: blockedUsers)
-        } else {
-            Firestore.firestore().collection("posts")
-                .whereField(FieldPath.documentID(), notIn: viewedPosts)
-                .getDocuments { (snapshot, error) in
-                    if let error = error {
-                        print("Error fetching posts: \(error)")
-                        isLoading = false
-                        return
-                    }
-
-                    guard let documents = snapshot?.documents else {
-                        print("No documents found")
-                        allPostsViewed = true
-                        isLoading = false
-                        return
-                    }
-
-                    var fetchedPosts: [Post] = []
-                    for document in documents {
-                        let data = document.data()
-
-                        guard let userId = data["userId"] as? String,
-                              !blockedUsers.contains(userId), // Exclude blocked users
-                              let imageUrl = data["imageUrl"] as? String,
-                              let timestamp = data["timestamp"] as? Timestamp else {
-                            continue
-                        }
-
-                        let locationName = data["locationName"] as? String ?? "Unknown location"
-
-                        let post = Post(id: document.documentID,
-                                        userId: userId,
-                                        username: "Unknown",
-                                        imageUrl: imageUrl,
-                                        locationName: locationName,
-                                        timestamp: timestamp)
-
-                        fetchedPosts.append(post)
-                    }
-
-                    DispatchQueue.main.async {
-                        self.posts = fetchedPosts
-                        self.allPostsViewed = fetchedPosts.isEmpty
-                        self.isLoading = false
-                        self.fetchUsernames(for: fetchedPosts)
-                    }
-                }
-        }
-    }
-
-    func fetchAndFilterAllPosts(viewedPosts: [String], blockedUsers: [String]) {
-        Firestore.firestore().collection("posts").getDocuments { (snapshot, error) in
-            if let error = error {
-                print("Error fetching posts: \(error)")
-                isLoading = false
-                return
-            }
-
-            guard let documents = snapshot?.documents else {
-                print("No documents found")
-                allPostsViewed = true
-                isLoading = false
-                return
-            }
-
-            var fetchedPosts: [Post] = []
-
-            for document in documents {
-                let data = document.data()
-
-                guard let userId = data["userId"] as? String,
-                      !blockedUsers.contains(userId), // Exclude blocked users
-                      let imageUrl = data["imageUrl"] as? String,
-                      let timestamp = data["timestamp"] as? Timestamp else {
-                    continue
-                }
-
-                let locationName = data["locationName"] as? String ?? "Unknown location"
-
-                if !viewedPosts.contains(document.documentID) {
-                    let post = Post(id: document.documentID,
-                                    userId: userId,
-                                    username: "Unknown",
-                                    imageUrl: imageUrl,
-                                    locationName: locationName,
-                                    timestamp: timestamp)
-
-                    fetchedPosts.append(post)
-                }
-            }
-
-            DispatchQueue.main.async {
-                self.posts = fetchedPosts
-                self.allPostsViewed = fetchedPosts.isEmpty
-                self.isLoading = false
-                self.fetchUsernames(for: fetchedPosts)
-            }
-        }
-    }
-
-    func fetchAllPosts(blockedUsers: [String]) {
-        Firestore.firestore().collection("posts").getDocuments { (snapshot, error) in
-            if let error = error {
-                print("Error fetching posts: \(error)")
-                isLoading = false
-                return
-            }
-
-            guard let documents = snapshot?.documents else {
-                print("No documents found")
-                allPostsViewed = true
-                isLoading = false
-                return
-            }
-
-            var fetchedPosts: [Post] = []
-            for document in documents {
-                let data = document.data()
-
-                guard let userId = data["userId"] as? String,
-                      !blockedUsers.contains(userId), // Filter out posts from blocked users
-                      let imageUrl = data["imageUrl"] as? String,
-                      let timestamp = data["timestamp"] as? Timestamp else {
-                    continue
-                }
-
-                let locationName = data["locationName"] as? String ?? "Unknown location"
-
-                let post = Post(id: document.documentID,
-                                userId: userId,
-                                username: "Unknown",
-                                imageUrl: imageUrl,
-                                locationName: locationName,
-                                timestamp: timestamp)
-
-                fetchedPosts.append(post)
-            }
-
-            DispatchQueue.main.async {
-                self.posts = fetchedPosts
-                self.allPostsViewed = fetchedPosts.isEmpty
-                self.isLoading = false
-                self.fetchUsernames(for: fetchedPosts)
-            }
-        }
-    }
-
-    func fetchUsernames(for posts: [Post]) {
-        let userIds = Array(Set(posts.map { $0.userId }))
-
-        guard !userIds.isEmpty else {
-            print("No user IDs to fetch.")
-            return
-        }
-
-        let batchSize = 10
-        let batches = stride(from: 0, to: userIds.count, by: batchSize).map {
-            Array(userIds[$0..<min($0 + batchSize, userIds.count)])
-        }
-
-        for batch in batches {
-            Firestore.firestore().collection("users")
-                .whereField(FieldPath.documentID(), in: batch)
-                .getDocuments { (snapshot, error) in
-                    guard let documents = snapshot?.documents else {
-                        print("Error fetching user documents: \(String(describing: error))")
-                        return
-                    }
-
-                    var fetchedUsers: [String: String] = [:]
-                    for document in documents {
-                        let data = document.data()
-                        if let username = data["username"] as? String {
-                            fetchedUsers[document.documentID] = username
-                        }
-                    }
-
-                    DispatchQueue.main.async {
-                        self.users.merge(fetchedUsers) { (_, new) in new }
-                    }
-                }
-        }
     }
 
     func markPostAsViewed(_ post: Post) {
@@ -741,4 +504,198 @@ struct Feed: View {
             likedPosts.insert(post.id)
         }
     }
+    
+    // Fetch posts function with integrated blocked users check
+    func fetchPosts() {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            print("Error: No authenticated user")
+            isLoading = false
+            return
+        }
+
+        let userRef = Firestore.firestore().collection("users").document(userId)
+        userRef.getDocument { (snapshot, error) in
+            if let error = error {
+                print("Error fetching user document: \(error)")
+                self.posts = [] // Clear the feed
+                self.isLoading = false
+                return
+            }
+
+            guard let data = snapshot?.data() else {
+                print("User document does not exist, unable to fetch posts.")
+                self.posts = [] // Clear the feed
+                self.isLoading = false
+                return
+            }
+            
+            // Fetch viewed posts list from the user document
+            let viewedPosts = data["viewedPosts"] as? [String] ?? []
+            
+            let following = data["following"] as? [String] ?? []
+            
+            // If no followed users, display an empty feed
+            if following.isEmpty {
+                print("Feed is empty. Follow users to see posts!")
+                self.posts = [] // Clear the feed
+                self.isLoading = false
+                return
+            }
+            
+            fetchPostsFromFollowedUsers(following: following, viewedPosts: viewedPosts)
+        }
+    }
+    
+    func fetchPostsFromFollowedUsers(following: [String], viewedPosts: [String]) {
+        let batchSize = 10
+        let batches = stride(from: 0, to: following.count, by: batchSize).map {
+            Array(following[$0..<min($0 + batchSize, following.count)])
+        }
+
+        var fetchedPosts: [Post] = []
+        var batchFetchesCompleted = 0
+
+        for batch in batches {
+            Firestore.firestore().collection("posts")
+                .whereField("userId", in: batch)
+                .getDocuments { snapshot, error in
+                    if let error = error {
+                        print("Error fetching posts for batch: \(error)")
+                        batchFetchesCompleted += 1
+                        checkBatchCompletion(batchFetchesCompleted, totalBatches: batches.count, fetchedPosts: fetchedPosts)
+                        return
+                    }
+
+                    guard let documents = snapshot?.documents else {
+                        batchFetchesCompleted += 1
+                        checkBatchCompletion(batchFetchesCompleted, totalBatches: batches.count, fetchedPosts: fetchedPosts)
+                        return
+                    }
+
+                    for document in documents {
+                        let data = document.data()
+
+                        guard let userId = data["userId"] as? String,
+                              let imageUrl = data["imageUrl"] as? String,
+                              let timestamp = data["timestamp"] as? Timestamp else {
+                            continue
+                        }
+
+                        if viewedPosts.contains(document.documentID) {
+                            continue
+                        }
+
+                        let locationName = data["locationName"] as? String ?? "Unknown location"
+                        let post = Post(
+                            id: document.documentID,
+                            userId: userId,
+                            username: "Unknown",
+                            imageUrl: imageUrl,
+                            locationName: locationName,
+                            timestamp: timestamp
+                        )
+                        fetchedPosts.append(post)
+                    }
+
+                    batchFetchesCompleted += 1
+                    checkBatchCompletion(batchFetchesCompleted, totalBatches: batches.count, fetchedPosts: fetchedPosts)
+                }
+        }
+    }
+    
+    func checkBatchCompletion(_ completed: Int, totalBatches: Int, fetchedPosts: [Post]) {
+            if completed == totalBatches {
+                DispatchQueue.main.async {
+                    self.posts = fetchedPosts
+                    self.isLoading = false
+                    fetchUsernames(for: fetchedPosts)
+                }
+            }
+    }
+
+
+    func fetchAllPosts() {
+        Firestore.firestore().collection("posts").getDocuments { (snapshot, error) in
+            if let error = error {
+                print("Error fetching posts: \(error)")
+                isLoading = false
+                return
+            }
+
+            guard let documents = snapshot?.documents else {
+                print("No documents found")
+                allPostsViewed = true
+                isLoading = false
+                return
+            }
+
+            var fetchedPosts: [Post] = []
+            for document in documents {
+                let data = document.data()
+
+                guard let userId = data["userId"] as? String,
+                      let imageUrl = data["imageUrl"] as? String,
+                      let timestamp = data["timestamp"] as? Timestamp else {
+                    continue
+                }
+
+                let locationName = data["locationName"] as? String ?? "Unknown location"
+
+                let post = Post(id: document.documentID,
+                                userId: userId,
+                                username: "Unknown",
+                                imageUrl: imageUrl,
+                                locationName: locationName,
+                                timestamp: timestamp)
+
+                fetchedPosts.append(post)
+            }
+
+            DispatchQueue.main.async {
+                self.posts = fetchedPosts
+                self.allPostsViewed = fetchedPosts.isEmpty
+                self.isLoading = false
+                self.fetchUsernames(for: fetchedPosts)
+            }
+        }
+    }
+
+
+    func fetchUsernames(for posts: [Post]) {
+        let userIds = Array(Set(posts.map { $0.userId }))
+
+        guard !userIds.isEmpty else {
+            print("No user IDs to fetch.")
+            return
+        }
+
+        let batchSize = 10
+        let batches = stride(from: 0, to: userIds.count, by: batchSize).map {
+            Array(userIds[$0..<min($0 + batchSize, userIds.count)])
+        }
+
+        for batch in batches {
+            Firestore.firestore().collection("users")
+                .whereField(FieldPath.documentID(), in: batch)
+                .getDocuments { (snapshot, error) in
+                    guard let documents = snapshot?.documents else {
+                        print("Error fetching user documents: \(String(describing: error))")
+                        return
+                    }
+
+                    var fetchedUsers: [String: String] = [:]
+                    for document in documents {
+                        let data = document.data()
+                        if let username = data["username"] as? String {
+                            fetchedUsers[document.documentID] = username
+                        }
+                    }
+
+                    DispatchQueue.main.async {
+                        self.users.merge(fetchedUsers) { (_, new) in new }
+                    }
+                }
+        }
+    }
+    
 }

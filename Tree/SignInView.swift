@@ -202,7 +202,10 @@ struct SignInView: View {
                     "username": username,
                     "firstName": firstName,
                     "lastName": lastName,
-                    "email": email
+                    "email": email,
+                    "following": [], // Initialize following as an empty array
+                    "blockedUsers": [], // Initialize blockedUsers as an empty array
+                    "viewedPosts": [] // Initialize viewedPosts as an empty array
                 ]) { error in
                     if let error = error {
                         self.errorMessage = "Error saving user info: \(error.localizedDescription)"
