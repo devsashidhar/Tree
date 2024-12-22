@@ -80,6 +80,7 @@ struct PostView: View {
                             onSelect: { country in
                                 selectedCountry = country
                                 loadStates(for: country) // Load states for the selected country
+                                updateLocationName() // Update the location name
                             }
                         )) {
                             Text(selectedCountry.isEmpty ? "Type to search countries" : selectedCountry)
@@ -106,6 +107,7 @@ struct PostView: View {
                                 items: stateList,
                                 onSelect: { state in
                                     selectedState = state
+                                    updateLocationName() // Update the location name
                                 }
                             )) {
                                 Text(selectedState.isEmpty ? "Type to search states" : selectedState)
@@ -133,7 +135,7 @@ struct PostView: View {
                             .shadow(color: .blue.opacity(0.5), radius: 5, x: 0, y: 5)
                     }
                     .padding(.top, 10)
-                    .disabled(selectedImage == nil || selectedCountry.isEmpty || isUploading)
+                    .disabled(selectedImage == nil || locationName.isEmpty || isUploading) // Allow upload if locationName is non-empty
 
                     // Success or error messages
                     if !uploadSuccessMessage.isEmpty {
@@ -222,12 +224,21 @@ struct PostView: View {
             print("User is not authenticated.")
         }
     }
+    
+    private func updateLocationName() {
+        if selectedState.isEmpty {
+            locationName = selectedCountry
+        } else {
+            locationName = "\(selectedState), \(selectedCountry)"
+        }
+        print("Updated locationName: \(locationName)") // Debug statement
+    }
 
     // Function to handle post upload
     func uploadPost() {
         // Clear previous error message and reset isUploading
         errorMessage = ""
-        isUploading = false
+        //isUploading = false
         isScanning = true  // Show scanning indicator
         
         // Ensure an image is selected and a location name is provided
@@ -301,6 +312,8 @@ struct PostView: View {
                 self.errorMessage = ""
                 self.selectedImage = nil
                 self.locationName = "" // Clear after upload
+                self.selectedCountry = ""
+                self.selectedState = ""
                 self.uploadSuccessMessage = "Image uploaded successfully!" // Show success message
                 
                 // Clear the success message after a delay
@@ -370,7 +383,7 @@ struct PostView: View {
             let detectedLabels = labels?.compactMap { $0["description"] as? String } ?? []
             
             let nonNatureKeywords = [
-                "person", "human", "face", "forehead", "smile", "chin", "eyebrows", "nose", "mouth",
+                "person", "human", "forehead", "smile", "chin", "eyebrows", "nose", "mouth",
                 "building", "house", "car", "vehicle", "road", "street", "city", "architecture",
                 "monument", "airplane", "ship", "bridge", "statue", "fountain", "train", "traffic",
                 "wall", "fence", "sidewalk"
