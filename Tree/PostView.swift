@@ -12,115 +12,207 @@ struct PostView: View {
     @State private var locationName: String = "" // State for location input
     @State private var isScanning = false
     @State private var uploadSuccessMessage: String = "" // For success message
-
+    
+    
+    // Location selection
+    @State private var countries: [String: [String]] = [:] // All countries and states
+    @State private var countryList: [String] = [] // Dynamic list of countries
+    @State private var filteredCountryList: [String] = []
+    @State private var stateList: [String] = []
+    @State private var filteredStateList: [String] = []
+    @State private var selectedCountry: String = ""
+    @State private var selectedState: String = ""
+    
+    @Environment(\.presentationMode) var presentationMode
+    
     var body: some View {
-        ZStack {
-            // Softer gradient background with light blue and indigo
-            LinearGradient(gradient: Gradient(colors: [Color.blue.opacity(0.4), Color.indigo.opacity(0.8)]),
-                           startPoint: .topLeading,
-                           endPoint: .bottomTrailing)
-                .ignoresSafeArea()
+        NavigationView {
+            ZStack {
+                // Softer gradient background with light blue and indigo
+                LinearGradient(gradient: Gradient(colors: [Color.blue.opacity(0.4), Color.indigo.opacity(0.8)]),
+                               startPoint: .topLeading,
+                               endPoint: .bottomTrailing)
+                    .ignoresSafeArea()
 
-            VStack(spacing: 20) {
-                // Display selected image or button to select/change one
-                if let selectedImage = selectedImage {
-                    Image(uiImage: selectedImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 300, height: 300)
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                        .shadow(radius: 10) // Add shadow to image
-                    
-                    // "Change Image" button to allow the user to pick another image
-                    Button(action: {
-                        showImagePicker = true
-                    }) {
-                        Text("Change Image")
+                VStack(spacing: 20) {
+                    // Display selected image or button to select/change one
+                    if let selectedImage = selectedImage {
+                        Image(uiImage: selectedImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 300, height: 300)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .shadow(radius: 10)
+
+                        Button(action: {
+                            showImagePicker = true
+                        }) {
+                            Text("Change Image")
+                                .frame(width: 200)
+                                .padding()
+                                .background(Color.gray.opacity(0.2))
+                                .foregroundColor(.white)
+                                .cornerRadius(20)
+                                .shadow(color: .gray.opacity(0.5), radius: 5, x: 0, y: 5)
+                        }
+                    } else {
+                        Button(action: {
+                            showImagePicker = true
+                        }) {
+                            Text("Select an Image")
+                                .frame(width: 200)
+                                .padding()
+                                .background(Color.gray.opacity(0.2))
+                                .foregroundColor(.white)
+                                .cornerRadius(20)
+                                .shadow(color: .gray.opacity(0.5), radius: 5, x: 0, y: 5)
+                        }
+                    }
+
+                    // Country selection
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Select a Country")
+                            .font(.headline)
+
+                        NavigationLink(destination: SelectionListView(
+                            title: "Select a Country",
+                            items: countryList,
+                            onSelect: { country in
+                                selectedCountry = country
+                                loadStates(for: country) // Load states for the selected country
+                            }
+                        )) {
+                            Text(selectedCountry.isEmpty ? "Type to search countries" : selectedCountry)
+                                .foregroundColor(.black)
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.white.opacity(0.3))
+                                .cornerRadius(10)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Color.gray, lineWidth: 1)
+                                )
+                        }
+                    }
+
+                    // State selection
+                    if !selectedCountry.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Select a State/Region (Optional)")
+                                .font(.headline)
+
+                            NavigationLink(destination: SelectionListView(
+                                title: "Select a State/Region",
+                                items: stateList,
+                                onSelect: { state in
+                                    selectedState = state
+                                }
+                            )) {
+                                Text(selectedState.isEmpty ? "Type to search states" : selectedState)
+                                    .foregroundColor(.black)
+                                    .padding()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.white.opacity(0.3))
+                                    .cornerRadius(10)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.gray, lineWidth: 1)
+                                    )
+                            }
+                        }
+                    }
+
+                    // Upload button
+                    Button(action: uploadPost) {
+                        Text("Upload")
                             .frame(width: 200)
                             .padding()
-                            .background(Color.gray.opacity(0.2))
+                            .background(Color.blue)
                             .foregroundColor(.white)
                             .cornerRadius(20)
-                            .shadow(color: .gray.opacity(0.5), radius: 5, x: 0, y: 5)
+                            .shadow(color: .blue.opacity(0.5), radius: 5, x: 0, y: 5)
                     }
-                } else {
-                    // Show "Select an Image" button if no image is selected
-                    Button(action: {
-                        showImagePicker = true
-                    }) {
-                        Text("Select an Image")
-                            .frame(width: 200)
+                    .padding(.top, 10)
+                    .disabled(selectedImage == nil || selectedCountry.isEmpty || isUploading)
+
+                    // Success or error messages
+                    if !uploadSuccessMessage.isEmpty {
+                        Text(uploadSuccessMessage)
+                            .foregroundColor(.black)
+                            .padding(.top, 8)
+                    }
+
+                    if !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .foregroundColor(.black)
+                            .padding(.top, 8)
+                    }
+                }
+                .padding()
+
+                // Scanning overlay
+                if isScanning {
+                    ZStack {
+                        Color.black.opacity(0.5)
+                            .edgesIgnoringSafeArea(.all)
+                        Text("Scanning...")
+                            .foregroundColor(.white)
+                            .font(.title)
                             .padding()
-                            .background(Color.gray.opacity(0.2))
-                            .foregroundColor(.white)
-                            .cornerRadius(20)
-                            .shadow(color: .gray.opacity(0.5), radius: 5, x: 0, y: 5)
+                            .background(Color.black.opacity(0.7))
+                            .cornerRadius(10)
                     }
                 }
-
-                // Clean and modern TextField with subtle contrast
-                TextField("Enter the location (e.g., Iceland)", text: $locationName)
-                    .padding()
-                    .background(Color.white.opacity(0.3)) // Add a subtle contrasting background
-                    .cornerRadius(10)
-                    .foregroundColor(.black)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.white.opacity(0.8), lineWidth: 1) // Soft white border
-                    )
-                    .padding(.horizontal, 16)
-
-                // Upload button
-                Button(action: uploadPost) {
-                    Text("Upload")
-                        .frame(width: 200)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(20)
-                        .shadow(color: .blue.opacity(0.5), radius: 5, x: 0, y: 5)
-                }
-                .padding(.top, 10)
-                .disabled(selectedImage == nil || locationName.isEmpty || isUploading) // Disable if no image or location name
-                
-                // Display success message if any
-                if !uploadSuccessMessage.isEmpty {
-                    Text(uploadSuccessMessage)
-                        .foregroundColor(.black)
-                        .padding(.top, 8)
-                }
-
-                // Display error message if any
-                if !errorMessage.isEmpty {
-                    Text(errorMessage)
-                        .foregroundColor(.black)
-                        //.fontWeight(.bold) // Make it bold for better visibility
-                        .padding(.top, 8)
-                }
             }
-            .padding()
-            
-            // Scanning overlay
-            if isScanning {
-                ZStack {
-                    Color.black.opacity(0.5)
-                        .edgesIgnoringSafeArea(.all)
-                    Text("Scanning...")
-                        .foregroundColor(.white)
-                        .font(.title)
-                        .padding()
-                        .background(Color.black.opacity(0.7))
-                        .cornerRadius(10)
-                }
+            .sheet(isPresented: $showImagePicker, content: {
+                ImagePicker(image: $selectedImage, sourceType: .photoLibrary)
+            })
+            .onAppear {
+                checkAuthenticationStatus()
+                loadCountries() // Load the initial list of countries
             }
-        }
-        .sheet(isPresented: $showImagePicker, content: {
-            ImagePicker(image: $selectedImage, sourceType: .photoLibrary)
-        })
-        .onAppear {
-            checkAuthenticationStatus()
         }
     }
+
+    private func loadCountries() {
+            // Load the JSON file
+            guard let url = Bundle.main.url(forResource: "countries", withExtension: "json") else {
+                print("Countries JSON file not found.")
+                return
+            }
+
+            do {
+                let data = try Data(contentsOf: url)
+                let decodedCountries = try JSONDecoder().decode([String: [String]].self, from: data)
+                countries = decodedCountries
+                countryList = Array(decodedCountries.keys).sorted()
+                filteredCountryList = countryList
+            } catch {
+                print("Error loading countries: \(error)")
+            }
+        }
+
+        private func filterCountries(query: String) {
+            if query.isEmpty {
+                filteredCountryList = countryList
+            } else {
+                filteredCountryList = countryList.filter { $0.lowercased().contains(query.lowercased()) }
+            }
+        }
+
+        private func loadStates(for country: String) {
+            stateList = countries[country] ?? []
+            filteredStateList = stateList
+        }
+
+        private func filterStates(query: String) {
+            if query.isEmpty {
+                filteredStateList = stateList
+            } else {
+                filteredStateList = stateList.filter { $0.lowercased().contains(query.lowercased()) }
+            }
+        }
+
     
     // Function to check authentication status
     func checkAuthenticationStatus() {
@@ -294,6 +386,42 @@ struct PostView: View {
             completion(!containsNonNature)
         }.resume()
     }
-
     
+    
+    struct SelectionListView: View {
+        let title: String
+        let items: [String]
+        let onSelect: (String) -> Void
+
+        @State private var searchQuery: String = ""
+        @Environment(\.presentationMode) var presentationMode
+
+        var filteredItems: [String] {
+            items.filter { item in
+                searchQuery.isEmpty || item.lowercased().contains(searchQuery.lowercased())
+            }
+        }
+
+        var body: some View {
+            VStack {
+                TextField("Search \(title.lowercased())", text: $searchQuery)
+                    .padding()
+                    .background(Color.white.opacity(0.3))
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+
+                List(filteredItems, id: \.self) { item in
+                    Button(action: {
+                        onSelect(item)
+                        presentationMode.wrappedValue.dismiss() // Dismiss view after selection
+                    }) {
+                        Text(item)
+                    }
+                }
+            }
+            .navigationTitle(title)
+        }
+    }
+
+
 }

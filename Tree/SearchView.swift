@@ -19,6 +19,9 @@ struct SearchView: View {
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .padding(.horizontal)
                         .autocapitalization(.none)
+                        .onChange(of: searchQuery) {
+                            performSearch() // Perform search whenever the query changes
+                        }
                     if isLoading {
                         ProgressView()
                             .padding(.trailing)
@@ -84,6 +87,7 @@ struct SearchView: View {
             searchResults = []
             return
         }
+
         isLoading = true
 
         let db = Firestore.firestore()
@@ -91,19 +95,23 @@ struct SearchView: View {
             .whereField("username", isGreaterThanOrEqualTo: searchQuery)
             .whereField("username", isLessThanOrEqualTo: searchQuery + "\u{f8ff}")
             .getDocuments { snapshot, error in
-                isLoading = false
-                if let error = error {
-                    print("Error searching users by username: \(error.localizedDescription)")
-                    return
-                }
+                DispatchQueue.main.async {
+                    self.isLoading = false
 
-                guard let documents = snapshot?.documents else {
-                    self.searchResults = []
-                    return
-                }
+                    if let error = error {
+                        print("Error searching users by username: \(error.localizedDescription)")
+                        self.searchResults = [] // Clear results on error
+                        return
+                    }
 
-                self.searchResults = documents.compactMap { document in
-                    parseUserData(data: document.data(), id: document.documentID)
+                    guard let documents = snapshot?.documents else {
+                        self.searchResults = [] // Clear results if no documents
+                        return
+                    }
+
+                    self.searchResults = documents.compactMap { document in
+                        parseUserData(data: document.data(), id: document.documentID)
+                    }
                 }
             }
     }
