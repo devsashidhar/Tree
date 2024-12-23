@@ -29,10 +29,12 @@ struct PostView: View {
         NavigationView {
             ZStack {
                 // Softer gradient background with light blue and indigo
-                LinearGradient(gradient: Gradient(colors: [Color.blue.opacity(0.4), Color.indigo.opacity(0.8)]),
-                               startPoint: .topLeading,
-                               endPoint: .bottomTrailing)
-                    .ignoresSafeArea()
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.blue.opacity(0.8), Color.blue.opacity(0.6)]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
 
                 VStack(spacing: 20) {
                     // Display selected image or button to select/change one

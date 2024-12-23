@@ -19,68 +19,92 @@ struct SearchView: View {
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .padding(.horizontal)
                         .autocapitalization(.none)
+                        .foregroundColor(.white) // Text in search bar
+                        .background(Color.gray.opacity(0.2)) // Search bar background
+                        .cornerRadius(8) // Rounded corners
                         .onChange(of: searchQuery) {
                             performSearch() // Perform search whenever the query changes
                         }
                     if isLoading {
                         ProgressView()
                             .padding(.trailing)
+                            .foregroundColor(.white) // Progress indicator in white
                     }
                 }
                 .padding(.top)
 
                 // Results list
                 List(searchResults) { user in
-                    HStack {
-                        // Wrap only the username and name in the NavigationLink
-                        NavigationLink(destination: UserPostsView(userId: user.id)) {
-                            VStack(alignment: .leading) {
-                                Text(user.username)
-                                    .font(.headline)
-                                
-                                if let firstName = user.firstName, let lastName = user.lastName {
-                                    Text("\(firstName) \(lastName)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.gray)
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.white, lineWidth: 1) // White border
+                            .background(Color.black) // Black background
+                            .cornerRadius(10)
+
+                        HStack {
+                            // Wrap username and name in the NavigationLink
+                            NavigationLink(destination: UserPostsView(userId: user.id)) {
+                                VStack(alignment: .leading) {
+                                    Text(user.username)
+                                        .font(.headline)
+                                        .foregroundColor(.white) // Username text in white
+
+                                    if let firstName = user.firstName, let lastName = user.lastName {
+                                        Text("\(firstName) \(lastName)")
+                                            .font(.subheadline)
+                                            .foregroundColor(.gray) // Subtitle in gray
+                                    }
                                 }
                             }
-                        }
-                        Spacer()
-                        // Follow/Following button logic outside the NavigationLink
-                        if following.contains(user.id) {
-                            Button(action: {
-                                removeFollower(newFollowerId: user.id)
-                            }) {
-                                Text("Following")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                                    .padding(6)
-                                    .background(Color.green.opacity(0.2))
-                                    .cornerRadius(6)
+
+                            Spacer()
+
+                            // Follow/Following button logic outside the NavigationLink
+                            if following.contains(user.id) {
+                                Button(action: {
+                                    removeFollower(newFollowerId: user.id)
+                                }) {
+                                    Text("Following")
+                                        .font(.caption)
+                                        .foregroundColor(.green)
+                                        .padding(8) // Comfortable padding
+                                        .background(Color.green.opacity(0.2))
+                                        .cornerRadius(10)
+                                }
+                                .buttonStyle(BorderlessButtonStyle()) // Prevent navigation when clicking the button
+                            } else {
+                                Button(action: {
+                                    addFollower(newFollowerId: user.id)
+                                }) {
+                                    Text("Follow")
+                                        .font(.caption)
+                                        .foregroundColor(.white)
+                                        .padding(8) // Comfortable padding
+                                        .background(Color.blue)
+                                        .cornerRadius(10)
+                                }
+                                .buttonStyle(BorderlessButtonStyle()) // Prevent navigation when clicking the button
                             }
-                            .buttonStyle(BorderlessButtonStyle()) // Prevent navigation when clicking the button
-                        } else {
-                            Button(action: {
-                                addFollower(newFollowerId: user.id)
-                            }) {
-                                Text("Follow")
-                                    .font(.caption)
-                                    .foregroundColor(.white)
-                                    .padding(6)
-                                    .background(Color.blue)
-                                    .cornerRadius(6)
-                            }
-                            .buttonStyle(BorderlessButtonStyle()) // Prevent navigation when clicking the button
                         }
+                        .padding(.horizontal, 16) // Add horizontal padding inside the box
+                        .padding(.vertical, 12)  // Add vertical padding inside the box
                     }
+                    .listRowInsets(EdgeInsets()) // Remove default list row padding
+                    .padding(.vertical, 5) // Add spacing between rows
                 }
+                .scrollContentBackground(.hidden) // Hide default list background
             }
+            .background(Color.black.edgesIgnoringSafeArea(.all)) // Set background color to black
             .navigationTitle("Search")
+            .navigationBarTitleDisplayMode(.inline)
+            .foregroundColor(.white) // Ensure the navigation title is white
             .onAppear {
-                fetchFollowing()
+                fetchFollowing() // Fetch following list on appear
             }
         }
+        .preferredColorScheme(.dark) // Force dark mode
     }
+
 
     private func performSearch() {
         guard !searchQuery.isEmpty else {
