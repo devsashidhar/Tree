@@ -30,7 +30,7 @@ struct PostView: View {
             ZStack {
                 // Softer gradient background with light blue and indigo
                 LinearGradient(
-                    gradient: Gradient(colors: [Color.blue.opacity(0.8), Color.blue.opacity(0.6)]),
+                    gradient: Gradient(colors: [Color.blue.opacity(0.4), Color.blue.opacity(0.9)]),
                     startPoint: .top,
                     endPoint: .bottom
                 )

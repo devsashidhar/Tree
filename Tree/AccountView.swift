@@ -16,6 +16,9 @@ struct AccountView: View {
     @State private var selectedImage: FullScreenImage? = nil // For showing the full-screen image
     @State private var isLoading = true // Loading state
     @State private var showDeleteConfirmation = false // Track if delete confirmation alert is shown
+    
+    @State private var showDeleteAlert = false // State to show delete confirmation
+    @State private var postToDelete: Post? = nil // Track which post to delete
 
     let columns = [
         GridItem(.flexible()),
@@ -99,10 +102,15 @@ struct AccountView: View {
                                             .scaledToFill()
                                             .frame(width: UIScreen.main.bounds.width / 2 - 15, height: UIScreen.main.bounds.width / 2 - 15)
                                             .clipShape(RoundedRectangle(cornerRadius: 10))
-                                            .onTapGesture {
+                                            .onLongPressGesture {
+                                                    print("Long press detected for post: \(post.id)")
+                                                    postToDelete = post
+                                                    showDeleteAlert = true
+                                                }
+                                            .onTapGesture(count: 1) {
+                                                print("Single tap detected")
                                                 selectedImage = FullScreenImage(url: post.imageUrl)
                                             }
-
                                         HStack(spacing: 4) {
                                             Text("\(post.likes.count)")
                                                 .font(.caption)
@@ -132,13 +140,30 @@ struct AccountView: View {
         .onAppear {
             fetchUserPosts()
         }
-        .alert(isPresented: $showDeleteConfirmation) {
-            Alert(
-                title: Text("Delete Account"),
-                message: Text("Are you sure you want to permanently delete your account? This action cannot be undone."),
-                primaryButton: .destructive(Text("Delete"), action: deleteAccount),
-                secondaryButton: .cancel()
-            )
+        .alert(isPresented: Binding<Bool>(
+            get: { showDeleteAlert || showDeleteConfirmation },
+            set: { value in
+                if !value {
+                    showDeleteAlert = false
+                    showDeleteConfirmation = false
+                }
+            }
+        )) {
+            if showDeleteAlert {
+                return Alert(
+                    title: Text("Delete Picture"),
+                    message: Text("Are you sure you want to delete this picture?"),
+                    primaryButton: .destructive(Text("Delete"), action: deletePost),
+                    secondaryButton: .cancel()
+                )
+            } else {
+                return Alert(
+                    title: Text("Delete Account"),
+                    message: Text("Are you sure you want to permanently delete your account?"),
+                    primaryButton: .destructive(Text("Delete"), action: deleteAccount),
+                    secondaryButton: .cancel()
+                )
+            }
         }
         .fullScreenCover(item: $selectedImage, content: { fullScreenImage in
             ZStack {
@@ -167,6 +192,26 @@ struct AccountView: View {
                 }
             }
         })
+    }
+    
+    
+    // Function to delete a specific post
+    func deletePost() {
+        guard let post = postToDelete else { return }
+
+        // Remove the post from Firestore
+        Firestore.firestore().collection("posts").document(post.id).delete { error in
+            if let error = error {
+                print("Error deleting post: \(error.localizedDescription)")
+                return
+            }
+
+            // Remove the post locally from the array
+            DispatchQueue.main.async {
+                userPosts.removeAll { $0.id == post.id }
+                postToDelete = nil // Clear the postToDelete
+            }
+        }
     }
 
     func handleSignOut() {
