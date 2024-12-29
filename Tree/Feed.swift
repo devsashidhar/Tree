@@ -9,6 +9,47 @@ struct IdentifiableString: Identifiable {
     var id: String
 }
 
+struct AppNotification: Identifiable {
+    let id: String
+    let message: String
+    let timestamp: Date
+    let read: Bool
+}
+
+
+struct NotificationCenterView: View {
+    let notifications: [AppNotification]
+
+    var body: some View {
+        List(notifications) { notification in
+            VStack(alignment: .leading) {
+                Text(notification.message)
+                    .font(.body)
+                    .foregroundColor(.white)
+                Text("\(notification.timestamp, formatter: DateFormatter.shortDate)")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            .padding()
+            .background(Color.black.opacity(0.8))
+            .cornerRadius(8)
+        }
+        .listStyle(PlainListStyle())
+        .background(Color.black.edgesIgnoringSafeArea(.all))
+        .navigationTitle("Notifications")
+    }
+}
+
+extension DateFormatter {
+    static var shortDate: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter
+    }
+}
+
+
 struct ZoomableImageView: View {
     let imageUrl: String
 
@@ -101,7 +142,12 @@ struct Feed: View {
     @State private var selectedImageUrl: String? // Track the selected image URL
     
     @State private var selectedImage: FullScreenImage? = nil // For showing the full-screen image
+    
+    // State for notifications
+    @State public var isNotificationCenterPresented = false
+    @State private var notifications: [AppNotification] = []
 
+    @State private var unreadNotificationsCount: Int = 0
     
     var body: some View {
         NavigationView {
@@ -117,6 +163,34 @@ struct Feed: View {
                             .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
                             .tracking(2)
                         Spacer()
+                        
+                        // Notification button
+                        Button(action: {
+                            print("[Debug] Notification button tapped.")
+                            fetchNotifications()
+                            isNotificationCenterPresented = true
+                        }) {
+                            ZStack {
+                                Image(systemName: "bell.fill")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 28, height: 28)
+                                    .foregroundColor(.white)
+                                
+                                if unreadNotificationsCount > 0 {
+                                    Text("\(unreadNotificationsCount)")
+                                        .font(.caption2)
+                                        .padding(4)
+                                        .background(Color.red)
+                                        .foregroundColor(.white)
+                                        .clipShape(Circle())
+                                        .offset(x: 10, y: -10)
+                                }
+                            }
+                        }
+                        .sheet(isPresented: $isNotificationCenterPresented, onDismiss: markNotificationsAsRead) {
+                            NotificationCenterView(notifications: notifications)
+                        }
 
                         // Messaging button with unread count badge
                         Button(action: {
@@ -328,12 +402,203 @@ struct Feed: View {
             }
         }
         .onAppear {
+            listenForUnreadNotifications()
+            requestNotificationPermissions()
             fetchUnreadMessages()
             fetchPosts()
+            print("[Info] Unread notification count badge: \(unreadNotificationsCount)")
         }
+    }
+    
+    func listenForUnreadNotifications() {
+        guard let userId = Auth.auth().currentUser?.uid else {
+                print("[Error] User ID not found.")
+                return
+        }
+        
+        let db = Firestore.firestore()
+        db.collection("users")
+            .document(userId)
+            .collection("notifications")
+            .whereField("read", isEqualTo: false)
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("[Error] Fetching unread notifications failed: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let snapshot = snapshot else {
+                    print("[Warning] No snapshot data returned.")
+                    return
+                }
+                
+                print("[Info] Listener triggered. Unread notifications count: \(snapshot.documents.count)")
+                snapshot.documents.forEach { doc in
+                    print("[Info] Notification ID: \(doc.documentID), Data: \(doc.data())")
+                }
+                
+                // Update unread count
+                self.unreadNotificationsCount = snapshot.documents.count
+            }
+    }
+    
+    private func markNotificationsAsRead() {
+        let currentUserId = Auth.auth().currentUser?.uid ?? ""
+        print("[Debug] Marking notifications as read for userId: \(currentUserId)")
+        
+        Firestore.firestore()
+            .collection("users")
+            .document(currentUserId)
+            .collection("notifications")
+            .whereField("read", isEqualTo: false)
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("[Error] Marking notifications as read failed: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else {
+                    print("[Warning] No unread notifications to mark as read.")
+                    return
+                }
+                
+                documents.forEach { doc in
+                    print("[Info] Marking notification as read: \(doc.documentID)")
+                    doc.reference.updateData(["read": true])
+                }
+                
+                self.unreadNotificationsCount = 0
+            }
     }
 
     
+    private func requestNotificationPermissions() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                // Request permissions if not determined
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+                    if let error = error {
+                        print("Error requesting notification permissions: \(error)")
+                    } else if granted {
+                        print("Notifications permission granted.")
+                    } else {
+                        print("Notifications permission denied.")
+                    }
+                }
+            case .authorized, .provisional:
+                print("Notifications already authorized.")
+            case .denied:
+                print("Notifications were previously denied. Encourage the user to enable them in settings.")
+            @unknown default:
+                print("Unknown notification settings state. No action taken.")
+            }
+        }
+    }
+    
+    private func fetchNotifications() {
+        let currentUserId = Auth.auth().currentUser?.uid ?? ""
+        print("[Debug] Fetching notifications for userId: \(currentUserId)")
+        
+        Firestore.firestore()
+            .collection("users")
+            .document(currentUserId)
+            .collection("notifications")
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("[Error] Fetching notifications failed: \(error.localizedDescription)")
+                    self.notifications = [] // Clear notifications on error
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else {
+                    print("[Warning] No notifications found.")
+                    self.notifications = []
+                    return
+                }
+                
+                print("[Info] Notifications fetched: \(documents.count)")
+                documents.forEach { doc in
+                    print("[Info] Notification ID: \(doc.documentID), Data: \(doc.data())")
+                }
+                
+                self.notifications = documents.compactMap { doc in
+                    let data = doc.data()
+                    return AppNotification(
+                        id: doc.documentID,
+                        message: data["message"] as? String ?? "Unknown notification",
+                        timestamp: (data["timestamp"] as? Timestamp)?.dateValue() ?? Date(),
+                        read: data["read"] as? Bool ?? false
+                    )
+                }
+                
+                print("[Info] Parsed notifications: \(self.notifications)")
+            }
+    }
+
+
+
+    // Notify the backend about the like
+    func notifyBackendOfLike(postId: String, userId: String) {
+        guard let url = URL(string: "https://your-backend-url.com/like-notification") else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "postId": postId,
+            "userId": userId
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
+        } catch {
+            print("Error serializing JSON body: \(error)")
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("Error sending like notification to backend: \(error)")
+                return
+            }
+
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                print("Notification triggered successfully for post: \(postId)")
+            } else {
+                print("Unexpected response from backend for post: \(postId)")
+            }
+        }.resume()
+    }
+    
+    private func processUserPosts(completion: @escaping ([String]) -> Void) {
+        let db = Firestore.firestore()
+        let currentUserId = Auth.auth().currentUser?.uid ?? ""
+        var notifications: [String] = []
+        
+        db.collection("posts").whereField("userId", isEqualTo: currentUserId).getDocuments { snapshot, error in
+            if let documents = snapshot?.documents {
+                for document in documents {
+                    let postId = document.documentID
+                    NotificationManager.shared.checkLikesAndNotifyUser(postId: postId)
+                    
+                    // Add notification for likes
+                    let data = document.data()
+                    let currentLikes = (data["likes"] as? [String])?.count ?? 0
+                    if currentLikes > 0 {
+                        notifications.append("Your post has \(currentLikes) likes!")
+                    }
+                }
+                completion(notifications)
+            } else {
+                print("Error fetching posts: \(error?.localizedDescription ?? "Unknown error")")
+                completion([])
+            }
+        }
+    }
+
+
     func flagContent(_ postId: String, offendingUserId: String) {
         guard let currentUserId = Auth.auth().currentUser?.uid else { return }
 
@@ -489,19 +754,35 @@ struct Feed: View {
     func likePost(_ post: Post) {
         guard let currentUserId = Auth.auth().currentUser?.uid else { return }
 
-        // Check if post is already liked
+        let db = Firestore.firestore()
+
         if likedPosts.contains(post.id) {
             // If already liked, remove the like
-            Firestore.firestore().collection("posts").document(post.id).updateData([
+            db.collection("posts").document(post.id).updateData([
                 "likes": FieldValue.arrayRemove([currentUserId])
-            ])
-            likedPosts.remove(post.id)
+            ]) { error in
+                if let error = error {
+                    print("Error removing like: \(error)")
+                    return
+                }
+                likedPosts.remove(post.id)
+                print("Like removed for post: \(post.id)")
+            }
         } else {
             // If not liked, add the like
-            Firestore.firestore().collection("posts").document(post.id).updateData([
+            db.collection("posts").document(post.id).updateData([
                 "likes": FieldValue.arrayUnion([currentUserId])
-            ])
-            likedPosts.insert(post.id)
+            ]) { error in
+                if let error = error {
+                    print("Error adding like: \(error)")
+                    return
+                }
+                likedPosts.insert(post.id)
+                print("Like added for post: \(post.id)")
+
+                // Notify the backend about the like
+                notifyBackendOfLike(postId: post.id, userId: post.userId)
+            }
         }
     }
     
@@ -595,6 +876,9 @@ struct Feed: View {
                             timestamp: timestamp
                         )
                         fetchedPosts.append(post)
+                        
+                        // Trigger notification monitoring for likes
+                        NotificationManager.shared.checkLikesAndNotifyUser(postId: post.id)
                     }
 
                     batchFetchesCompleted += 1

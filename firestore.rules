@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Rules for user documents - users can only read and write their own data
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Rules for post documents - all authenticated users can read posts, but not write them
+    match /posts/{postId} {
+      allow read: if request.auth != null;
+    }
+
+    // Rules for chat documents - only users who are part of the chat can read or write
+    match /chats/{chatId} {
+      allow read, write: if request.auth != null &&
+          (request.auth.uid == resource.data.user1Id || request.auth.uid == resource.data.user2Id);
+    }
+
+    // Rules for message documents - only users who are part of the corresponding chat can read or write messages
+    match /chats/{chatId}/messages/{messageId} {
+      allow read, write: if request.auth != null &&
+          (request.auth.uid == resource.data.senderId || request.auth.uid == resource.data.receiverId);
+    }
+
+    // General access to other collections if needed (ensure to restrict or remove as necessary)
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

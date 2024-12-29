@@ -7,10 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		109BFB822CCC0C2400D8F16F /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 109BFB812CCC0C2400D8F16F /* GoogleService-Info.plist */; };
 		109BFB842CCC1B8500D8F16F /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 109BFB832CCC1B8500D8F16F /* FirebaseMessaging */; };
 		109BFB862CCC1BE500D8F16F /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 109BFB852CCC1BE500D8F16F /* FirebaseMessaging */; };
 		109BFB882CCC1BFA00D8F16F /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 109BFB872CCC1BFA00D8F16F /* FirebaseMessaging */; };
+		109C18C42D1B70B000A54356 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 109C18C32D1B70B000A54356 /* GoogleService-Info.plist */; };
+		109C18C52D1B70B000A54356 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 109C18C32D1B70B000A54356 /* GoogleService-Info.plist */; };
+		109C18C62D1B70B000A54356 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 109C18C32D1B70B000A54356 /* GoogleService-Info.plist */; };
 		10D266222CB8B4FE00B55CBC /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 10D266212CB8B4FE00B55CBC /* FirebaseAuth */; };
 		10D266242CB8B4FE00B55CBC /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 10D266232CB8B4FE00B55CBC /* FirebaseFirestore */; };
 		10D266262CB8B4FE00B55CBC /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 10D266252CB8B4FE00B55CBC /* FirebaseStorage */; };
@@ -36,7 +38,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		109BFB812CCC0C2400D8F16F /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		109C18C32D1B70B000A54356 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		10D265F22CB8B37B00B55CBC /* EcoTerra.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EcoTerra.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		10D266032CB8B37C00B55CBC /* EcoTerraTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EcoTerraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		10D2660D2CB8B37C00B55CBC /* EcoTerraUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EcoTerraUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -109,11 +111,11 @@
 		10D265E92CB8B37B00B55CBC = {
 			isa = PBXGroup;
 			children = (
-				109BFB812CCC0C2400D8F16F /* GoogleService-Info.plist */,
 				10D265F42CB8B37B00B55CBC /* Tree */,
 				10D266062CB8B37C00B55CBC /* TreeTests */,
 				10D266102CB8B37C00B55CBC /* TreeUITests */,
 				10D265F32CB8B37B00B55CBC /* Products */,
+				109C18C32D1B70B000A54356 /* GoogleService-Info.plist */,
 			);
 			sourceTree = "<group>";
 		};
@@ -241,6 +243,7 @@
 			packageReferences = (
 				10D266202CB8B4FE00B55CBC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				10F788E72CBD0F6800B48AA0 /* XCRemoteSwiftPackageReference "Kingfisher" */,
+				109C198B2D1FC19600A54356 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 10D265F32CB8B37B00B55CBC /* Products */;
@@ -259,7 +262,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				109BFB822CCC0C2400D8F16F /* GoogleService-Info.plist in Resources */,
+				109C18C42D1B70B000A54356 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -267,6 +270,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				109C18C52D1B70B000A54356 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -274,6 +278,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				109C18C62D1B70B000A54356 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -438,12 +443,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Tree/TreeDebug.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"Tree/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
-				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 8VTQGBLVQB;
+				DEVELOPMENT_TEAM = 8VTQGBLVQB;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Tree/Info.plist;
@@ -467,7 +471,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.dev.ecoterra;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = SecondTakeDevelopment;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -484,12 +487,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Tree/Tree.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Distribution";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "\"Tree/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
-				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 8VTQGBLVQB;
+				DEVELOPMENT_TEAM = 8VTQGBLVQB;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Tree/Info.plist;
@@ -513,7 +515,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.dev.ecoterra;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = WhyDistribution;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -652,6 +653,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		109C198B2D1FC19600A54356 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
 		10D266202CB8B4FE00B55CBC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";

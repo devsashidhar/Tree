@@ -148,11 +148,13 @@ struct SearchView: View {
     }
 
     private func addFollower(newFollowerId: String) {
-        let userId = Auth.auth().currentUser?.uid ?? ""
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
 
-        let userRef = Firestore.firestore().collection("users").document(userId)
+        let db = Firestore.firestore()
 
-        userRef.updateData([
+        // Update the 'following' array of the current user
+        let currentUserRef = db.collection("users").document(currentUserId)
+        currentUserRef.updateData([
             "following": FieldValue.arrayUnion([newFollowerId])
         ]) { error in
             if let error = error {
@@ -160,8 +162,21 @@ struct SearchView: View {
             } else {
                 print("Successfully updated following list with: \(newFollowerId)")
                 DispatchQueue.main.async {
-                    following.insert(newFollowerId) // Update local state to reflect UI changes
+                    self.following.insert(newFollowerId) // Update local state to reflect UI changes
                 }
+            }
+        }
+
+        // Update the 'followers' array of the user being followed
+        let followedUserRef = db.collection("users").document(newFollowerId)
+        followedUserRef.updateData([
+            "followers": FieldValue.arrayUnion([currentUserId])
+        ]) { error in
+            if let error = error {
+                print("Error updating followers list: \(error)")
+            } else {
+                print("Successfully updated followers list for: \(newFollowerId)")
+                
             }
         }
     }
