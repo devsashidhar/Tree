@@ -260,3 +260,122 @@ exports.sendFollowNotification = onDocumentUpdated("users/{userId}", async (even
     return null;
   }
 });
+
+exports.sendMessageNotification = onDocumentUpdated("chats/{chatId}/messages/{messageId}", async (event) => {
+  console.log("Firestore onCreate triggered for new message.");
+
+  const messageData = event.data.data(); // Get the newly created message data
+  const chatId = event.params.chatId;
+  const messageId = event.params.messageId;
+
+  console.log("Chat ID:", chatId);
+  console.log("Message ID:", messageId);
+  console.log("Message Data:", messageData);
+
+  const {receiverId, senderId, text} = messageData;
+
+  try {
+    // Fetch the receiver's user document
+    const receiverDocRef = db.collection("users").doc(receiverId);
+    const receiverSnapshot = await receiverDocRef.get();
+
+    if (!receiverSnapshot.exists) {
+      console.log(`Receiver not found for userId: ${receiverId}`);
+      return null;
+    }
+
+    const receiverData = receiverSnapshot.data();
+    const fcmTokens = receiverData.fcmTokens || [];
+
+    // Validate FCM tokens
+    const validTokens = [];
+    const invalidTokens = [];
+
+    const tokenValidationResults = await Promise.allSettled(
+        fcmTokens.map((token) =>
+          admin.messaging().send({
+            token,
+            data: {validation: "check"},
+            android: {priority: "high"},
+            apns: {payload: {aps: {"content-available": 1}}},
+          }),
+        ),
+    );
+
+    tokenValidationResults.forEach((result, index) => {
+      if (result.status === "fulfilled") {
+        validTokens.push(fcmTokens[index]);
+      } else if (
+        result.reason.errorInfo &&
+        result.reason.errorInfo.code === "messaging/registration-token-not-registered"
+      ) {
+        invalidTokens.push(fcmTokens[index]);
+        console.log(`Invalid token removed: ${fcmTokens[index]}`);
+      }
+    });
+
+    // Update Firestore with valid tokens only
+    if (invalidTokens.length > 0) {
+      await receiverDocRef.update({
+        fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+      });
+    }
+
+    if (validTokens.length === 0) {
+      console.log(`No valid FCM tokens found for receiver ID: ${receiverId}`);
+      return null;
+    }
+
+    // Fetch the sender's username
+    const senderDocRef = db.collection("users").doc(senderId);
+    const senderSnapshot = await senderDocRef.get();
+
+    if (!senderSnapshot.exists) {
+      console.log(`Sender not found for userId: ${senderId}`);
+      return null;
+    }
+
+    const senderData = senderSnapshot.data();
+    const senderUsername = senderData.username || "Someone";
+
+    console.log(`Sender username: ${senderUsername}`);
+
+    // Create notification payload
+    const payload = {
+      notification: {
+        title: "New Message",
+        body: `${senderUsername}: ${text}`,
+      },
+      android: {
+        notification: {sound: "default"},
+      },
+      apns: {
+        payload: {
+          aps: {sound: "default"},
+        },
+      },
+    };
+
+    console.log("Notification payload:", payload);
+
+    // Send notifications to all valid FCM tokens
+    const notificationResults = await Promise.all(
+        validTokens.map((token) =>
+          admin.messaging().send({
+            token,
+            notification: payload.notification,
+            android: payload.android,
+            apns: payload.apns,
+          }),
+        ),
+    );
+
+    console.log(`Notifications sent for message to receiver ID: ${receiverId}`);
+    console.log("Responses:", notificationResults);
+
+    return notificationResults;
+  } catch (error) {
+    console.error(`Error processing message notification for userId: ${receiverId}`, error);
+    return null;
+  }
+});

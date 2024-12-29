@@ -9,16 +9,62 @@ struct FullScreenImage: Identifiable {
     var url: String // The image URL
 }
 
+struct AccountDetailsView: View {
+    @State var firstName: String
+    @State var lastName: String
+    @State var username: String
+    @State var email: String
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                Text("Account Details")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.bottom, 20)
+
+                Text("First Name: \(firstName)")
+                    .foregroundColor(.white)
+                    .font(.system(size: 18))
+
+                Text("Last Name: \(lastName)")
+                    .foregroundColor(.white)
+                    .font(.system(size: 18))
+
+                Text("Username: \(username)")
+                    .foregroundColor(.white)
+                    .font(.system(size: 18))
+
+                Text("Email: \(email)")
+                    .foregroundColor(.white)
+                    .font(.system(size: 18))
+
+                Spacer()
+            }
+            .padding()
+        }
+    }
+}
+
 struct AccountView: View {
     @State private var userPosts: [Post] = []
     @State private var userId: String = Auth.auth().currentUser?.uid ?? "" // Fetch the current user's ID
+    
     @State private var username: String = "Unknown" // Default username value
+    @State private var firstName: String = "Unknown" // Default first name value
+    @State private var lastName: String = "Unknown" // Default last name value
+    @State private var email: String = "Unknown" // Default email value
+    
     @State private var selectedImage: FullScreenImage? = nil // For showing the full-screen image
     @State private var isLoading = true // Loading state
     @State private var showDeleteConfirmation = false // Track if delete confirmation alert is shown
     
     @State private var showDeleteAlert = false // State to show delete confirmation
     @State private var postToDelete: Post? = nil // Track which post to delete
+    
+    @State private var showAccountDetails = false // State to show account details view
 
     let columns = [
         GridItem(.flexible()),
@@ -61,6 +107,12 @@ struct AccountView: View {
                                 handleSignOut()
                             }) {
                                 Label("Sign Out", systemImage: "arrowshape.turn.up.left")
+                            }
+                            // Account Details Option
+                            Button(action: {
+                                showAccountDetails = true
+                            }) {
+                                Label("Account Details", systemImage: "person.crop.circle")
                             }
                         } label: {
                             Image(systemName: "gearshape")
@@ -139,6 +191,15 @@ struct AccountView: View {
         }
         .onAppear {
             fetchUserPosts()
+            fetchAccountDetails()
+        }
+        .sheet(isPresented: $showAccountDetails) {
+            AccountDetailsView(
+                firstName: firstName,
+                lastName: lastName,
+                username: username,
+                email: email
+            )
         }
         .alert(isPresented: Binding<Bool>(
             get: { showDeleteAlert || showDeleteConfirmation },
@@ -377,6 +438,20 @@ struct AccountView: View {
             } else {
                 print("Error fetching username or document does not exist: \(String(describing: error))")
                 self.username = "Unknown" // Fallback if Firestore fails
+            }
+        }
+    }
+    
+    func fetchAccountDetails() {
+        Firestore.firestore().collection("users").document(userId).getDocument { document, error in
+            if let document = document, document.exists {
+                let data = document.data()
+                firstName = data?["firstName"] as? String ?? "Unknown"
+                lastName = data?["lastName"] as? String ?? "Unknown"
+                username = data?["username"] as? String ?? "Unknown"
+                email = data?["email"] as? String ?? "Unknown"
+            } else {
+                print("Error fetching account details: \(String(describing: error))")
             }
         }
     }

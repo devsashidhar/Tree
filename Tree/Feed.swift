@@ -21,7 +21,7 @@ struct NotificationCenterView: View {
     let notifications: [AppNotification]
 
     var body: some View {
-        List(notifications) { notification in
+        List(notifications.sorted(by: { $0.timestamp > $1.timestamp })) { notification in
             VStack(alignment: .leading) {
                 Text(notification.message)
                     .font(.body)
@@ -148,6 +148,8 @@ struct Feed: View {
     @State private var notifications: [AppNotification] = []
 
     @State private var unreadNotificationsCount: Int = 0
+    
+    @State private var listener: ListenerRegistration? // Firestore listener for unread messages
     
     var body: some View {
         NavigationView {
@@ -408,6 +410,47 @@ struct Feed: View {
             fetchPosts()
             print("[Info] Unread notification count badge: \(unreadNotificationsCount)")
         }
+    }
+    
+// Function to listen for real-time updates to unread messages
+    func listenForUnreadMessages() {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        let chatsRef = Firestore.firestore().collection("chats")
+        listener = chatsRef.whereField("userIds", arrayContains: userId).addSnapshotListener { snapshot, error in
+            if let error = error {
+                print("Error listening for chat updates: \(error)")
+                return
+            }
+            
+            guard let documents = snapshot?.documents else {
+                print("No chat documents found.")
+                return
+            }
+            
+            // Count chats with unread messages for the current user
+            let unreadCount = documents.filter { document in
+                if let chatData = document.data() as? [String: Any],
+                   let messages = chatData["messages"] as? [[String: Any]] {
+                    return messages.contains { message in
+                        let isRead = message["isRead"] as? Bool ?? true
+                        let receiverId = message["receiverId"] as? String ?? ""
+                        return !isRead && receiverId == userId
+                    }
+                }
+                return false
+            }.count
+            
+            DispatchQueue.main.async {
+                self.unreadMessagesCount = unreadCount
+            }
+        }
+    }
+
+    // Function to remove the listener
+    func removeListener() {
+        listener?.remove()
+        listener = nil
     }
     
     func listenForUnreadNotifications() {
