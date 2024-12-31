@@ -155,6 +155,8 @@ struct Feed: View {
     
     @State private var previouslyViewedPosts: [Post] = []
 
+    @State private var isLoadingPreviouslyViewed: Bool = false
+
     
     var body: some View {
         NavigationView {
@@ -271,8 +273,7 @@ struct Feed: View {
                         .frame(maxHeight: .infinity)
                     } else if posts.isEmpty && allPostsViewed {
                         // Show previously viewed posts in the same feed format
-                        if previouslyViewedPosts.isEmpty {
-                            // Show loading spinner while previously viewed posts are being fetched
+                        if isLoadingPreviouslyViewed {
                             VStack {
                                 ProgressView("Loading previously viewed posts...")
                                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
@@ -513,11 +514,15 @@ struct Feed: View {
             fetchUnreadMessages()
             //fetchPosts(refresh: true) // Fetch the feed on app load
             
+            loadCachedPreviouslyViewedPosts()
+            
             fetchFollowing { following in
                 self.following = following // Set the following list
                 fetchPosts(refresh: true) // Fetch posts after updating the following list
             }
-            fetchPreviouslyViewedPosts()
+            if posts.isEmpty && allPostsViewed {
+                fetchPreviouslyViewedPosts()
+            }
         }
     }
     
@@ -534,46 +539,55 @@ struct Feed: View {
     func fetchPreviouslyViewedPosts() {
         guard let userId = Auth.auth().currentUser?.uid else {
             print("[Error] User not authenticated.")
+            self.previouslyViewedPosts = []
+            self.isLoadingPreviouslyViewed = false
             return
         }
 
+        isLoadingPreviouslyViewed = true
+
         Firestore.firestore().collection("users").document(userId).getDocument { snapshot, error in
             if let error = error {
-                print("[Error] Fetching previously viewed posts failed: \(error.localizedDescription)")
+                print("[Error] Fetching viewed posts failed: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    self.previouslyViewedPosts = []
+                    self.isLoadingPreviouslyViewed = false
+                }
                 return
             }
 
             guard let data = snapshot?.data(),
                   let viewedPostIds = data["viewedPosts"] as? [String],
                   !viewedPostIds.isEmpty else {
-                print("[Info] No previously viewed posts found.")
+                print("[Info] No viewed posts found.")
                 DispatchQueue.main.async {
-                    self.previouslyViewedPosts = [] // Ensure spinner stops
+                    self.previouslyViewedPosts = []
+                    self.isLoadingPreviouslyViewed = false
                 }
                 return
             }
 
-            // Fetch all previously viewed posts in one query (remove batching logic)
             Firestore.firestore().collection("posts")
                 .whereField(FieldPath.documentID(), in: viewedPostIds)
                 .getDocuments { querySnapshot, error in
                     if let error = error {
-                        print("[Error] Fetching previously viewed posts failed: \(error.localizedDescription)")
+                        print("[Error] Fetching posts failed: \(error.localizedDescription)")
                         DispatchQueue.main.async {
-                            self.previouslyViewedPosts = [] // Stop spinner even on error
+                            self.previouslyViewedPosts = []
+                            self.isLoadingPreviouslyViewed = false
                         }
                         return
                     }
 
                     guard let documents = querySnapshot?.documents else {
-                        print("[Info] No previously viewed posts found in query.")
+                        print("[Info] No posts found for viewedPostIds.")
                         DispatchQueue.main.async {
-                            self.previouslyViewedPosts = [] // Ensure spinner stops
+                            self.previouslyViewedPosts = []
+                            self.isLoadingPreviouslyViewed = false
                         }
                         return
                     }
 
-                    // Map Firestore documents into `Post` objects
                     let posts = documents.compactMap { doc -> Post? in
                         let data = doc.data()
                         guard let userId = data["userId"] as? String,
@@ -582,18 +596,27 @@ struct Feed: View {
                             return nil
                         }
                         let locationName = data["locationName"] as? String ?? "Unknown location"
-                        return Post(id: doc.documentID, userId: userId, username: "Unknown", imageUrl: imageUrl, locationName: locationName, timestamp: timestamp)
+                        return Post(
+                            id: doc.documentID,
+                            userId: userId,
+                            username: "Unknown", // Placeholder, updated below
+                            imageUrl: imageUrl,
+                            locationName: locationName,
+                            timestamp: timestamp
+                        )
                     }
 
                     DispatchQueue.main.async {
-                        // Show all previously viewed posts
                         self.previouslyViewedPosts = posts
-                        print("[Info] Loaded all previously viewed posts: \(posts.count)")
+                        self.fetchUsernames(for: posts) {
+                            self.savePreviouslyViewedPostsToCache(self.previouslyViewedPosts)
+                            self.isLoadingPreviouslyViewed = false
+                            print("[Info] Successfully loaded and cached previously viewed posts.")
+                        }
                     }
                 }
         }
     }
-
 
     func fetchFollowing(completion: @escaping ([String]) -> Void) {
         guard let userId = Auth.auth().currentUser?.uid else {
@@ -1143,20 +1166,86 @@ struct Feed: View {
         }
     }
     
-    func loadCachedPosts() {
+    func loadCachedPosts() -> [Post]? {
         if let cachedData = UserDefaults.standard.data(forKey: "cachedPosts"),
            let cachedPosts = try? JSONDecoder().decode([Post].self, from: cachedData) {
-            self.posts = cachedPosts
-            print("Loaded cached posts: \(cachedPosts.count)")
+            print("[Info] Loaded \(cachedPosts.count) cached posts with usernames.")
+            return cachedPosts
         }
+        return nil
     }
-    
+
     func savePostsToCache(_ posts: [Post]) {
-        if let data = try? JSONEncoder().encode(posts) {
+        let postsWithUsernames = posts.map { post in
+            // Ensure username is included when saving
+            Post(
+                id: post.id,
+                userId: post.userId,
+                username: users[post.userId] ?? "Unknown",
+                imageUrl: post.imageUrl,
+                locationName: post.locationName,
+                timestamp: post.timestamp,
+                likes: post.likes
+            )
+        }
+
+        if let data = try? JSONEncoder().encode(postsWithUsernames) {
             UserDefaults.standard.set(data, forKey: "cachedPosts")
-            print("Cached \(posts.count) posts.")
+            print("[Info] Cached \(postsWithUsernames.count) posts with usernames.")
         }
     }
+
+    
+    func loadCachedPreviouslyViewedPosts() {
+        if let cachedData = UserDefaults.standard.data(forKey: "cachedPreviouslyViewedPosts"),
+           let cachedPosts = try? JSONDecoder().decode([Post].self, from: cachedData) {
+            
+            print("Loaded \(cachedPosts.count) cached previously viewed posts.")
+
+            // Fetch usernames for these cached posts
+            self.fetchUsernames(for: cachedPosts) {
+                DispatchQueue.main.async {
+                    // Map posts to include usernames from the global `users` dictionary
+                    self.previouslyViewedPosts = cachedPosts.map { post in
+                        Post(
+                            id: post.id,
+                            userId: post.userId,
+                            username: self.users[post.userId] ?? post.username, // Use updated username
+                            imageUrl: post.imageUrl,
+                            locationName: post.locationName,
+                            timestamp: post.timestamp,
+                            likes: post.likes
+                        )
+                    }
+                    print("Updated previously viewed posts with usernames.")
+                }
+            }
+        }
+    }
+
+
+    func savePreviouslyViewedPostsToCache(_ posts: [Post]) {
+        // Include usernames when caching posts
+        let postsWithUsernames = posts.map { post in
+            Post(
+                id: post.id,
+                userId: post.userId,
+                username: users[post.userId] ?? post.username, // Ensure username is included
+                imageUrl: post.imageUrl,
+                locationName: post.locationName,
+                timestamp: post.timestamp,
+                likes: post.likes
+            )
+        }
+
+        if let data = try? JSONEncoder().encode(postsWithUsernames) {
+            UserDefaults.standard.set(data, forKey: "cachedPreviouslyViewedPosts")
+            print("Cached \(postsWithUsernames.count) previously viewed posts.")
+        }
+    }
+
+
+
     
     func checkBatchCompletion(_ completed: Int, totalBatches: Int, fetchedPosts: [Post]) {
         if completed == totalBatches {
@@ -1230,11 +1319,13 @@ struct Feed: View {
     }
 
 
-    func fetchUsernames(for posts: [Post]) {
+    func fetchUsernames(for posts: [Post], completion: (() -> Void)? = nil) {
+        // Extract unique user IDs from posts
         let userIds = Array(Set(posts.map { $0.userId }))
 
         guard !userIds.isEmpty else {
             print("No user IDs to fetch.")
+            completion?()
             return
         }
 
@@ -1243,16 +1334,25 @@ struct Feed: View {
             Array(userIds[$0..<min($0 + batchSize, userIds.count)])
         }
 
+        // Track the number of completed batches
+        var completedBatches = 0
+        var fetchedUsers: [String: String] = [:]
+
         for batch in batches {
             Firestore.firestore().collection("users")
                 .whereField(FieldPath.documentID(), in: batch)
                 .getDocuments { (snapshot, error) in
                     guard let documents = snapshot?.documents else {
                         print("Error fetching user documents: \(String(describing: error))")
+                        completedBatches += 1
+                        if completedBatches == batches.count {
+                            // Ensure completion is called even if some batches fail
+                            self.users.merge(fetchedUsers) { (_, new) in new }
+                            completion?()
+                        }
                         return
                     }
 
-                    var fetchedUsers: [String: String] = [:]
                     for document in documents {
                         let data = document.data()
                         if let username = data["username"] as? String {
@@ -1260,11 +1360,18 @@ struct Feed: View {
                         }
                     }
 
-                    DispatchQueue.main.async {
-                        self.users.merge(fetchedUsers) { (_, new) in new }
+                    completedBatches += 1
+                    if completedBatches == batches.count {
+                        // Merge fetched usernames into the global `users` dictionary
+                        DispatchQueue.main.async {
+                            self.users.merge(fetchedUsers) { (_, new) in new }
+                            print("Fetched and merged \(fetchedUsers.count) usernames.")
+                            completion?()
+                        }
                     }
                 }
         }
     }
+
     
 }
