@@ -190,8 +190,8 @@ struct AccountView: View {
             }
         }
         .onAppear {
-            fetchUserPosts()
             fetchAccountDetails()
+            fetchUserPosts()
         }
         .sheet(isPresented: $showAccountDetails) {
             AccountDetailsView(
@@ -391,7 +391,7 @@ struct AccountView: View {
                         // Handle missing location name and provide a default value
                         let locationName = data["locationName"] as? String ?? "Unknown Location"
                         
-                        let timestamp = data["timestamp"] as? Timestamp ?? Timestamp(date: Date())
+                        let timestamp = (data["timestamp"] as? Timestamp)?.dateValue() ?? Date() // Convert to Date
                         let likes = data["likes"] as? [String] ?? [] // Fetch the likes array from Firestore
 
                         // Create a Post object without username initially

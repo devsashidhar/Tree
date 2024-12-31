@@ -105,14 +105,14 @@ struct ChatIdentifier: Identifiable {
 }
 
 
-struct Post: Identifiable {
+struct Post: Identifiable, Codable {
     var id: String
     var userId: String
     var username: String
     var imageUrl: String
     var locationName: String
-    var timestamp: Timestamp
-    var likes: [String] = [] // Array to store user IDs of people who liked the post
+    var timestamp: Date
+    var likes: [String] = []
 }
 
 struct Feed: View {
@@ -150,6 +150,11 @@ struct Feed: View {
     @State private var unreadNotificationsCount: Int = 0
     
     @State private var listener: ListenerRegistration? // Firestore listener for unread messages
+    
+    @State private var following: [String] = [] // To keep track of followed users
+    
+    @State private var previouslyViewedPosts: [Post] = []
+
     
     var body: some View {
         NavigationView {
@@ -240,27 +245,126 @@ struct Feed: View {
                                 .font(.headline)
                         }
                         .frame(maxHeight: .infinity)
-                    } else if posts.isEmpty && allPostsViewed {
-                        // Show "You're all caught up!" message
+                    } else if posts.isEmpty && following.isEmpty {
+                        // Show message when no one is followed
                         VStack {
-                            Image(systemName: "checkmark.circle.fill")
+                            Image(systemName: "person.2.fill")
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 80, height: 80)
-                                .foregroundColor(.green)
-                                .shadow(radius: 10)
-
-                            Text("You're all caught up!")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding()
-
-                            Text("No more posts to view at the moment")
-                                .font(.system(size: 16))
                                 .foregroundColor(.gray)
-                                .padding(.top, -10)
+                                .padding(.bottom, 20)
+
+                            Text("Start following users to see their posts on your Feed.")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+
+                            Text("Swipe down to refresh after following someone!")
+                                .font(.system(size: 14, weight: .light))
+                                .foregroundColor(.gray)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+                                .padding(.top, 10)
                         }
                         .frame(maxHeight: .infinity)
+                    } else if posts.isEmpty && allPostsViewed {
+                        // Show previously viewed posts in the same feed format
+                        if previouslyViewedPosts.isEmpty {
+                            // Show loading spinner while previously viewed posts are being fetched
+                            VStack {
+                                ProgressView("Loading previously viewed posts...")
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .scaleEffect(1.5)
+                                    .padding()
+                            }
+                            .frame(maxHeight: .infinity)
+                        } else {
+                            ScrollView {
+                                LazyVStack {
+                                    ForEach(previouslyViewedPosts) { post in
+                                        VStack(alignment: .leading, spacing: 10) {
+                                            // Username and Location Name Above the Photo
+                                            HStack {
+                                                NavigationLink(destination: UserPostsView(userId: post.userId)) {
+                                                    Text("Posted by: \(users[post.userId] ?? "Unknown")")
+                                                        .font(.caption)
+                                                        .foregroundColor(Color.blue.opacity(0.7)) // Subtle blue shade
+                                                }
+                                                Spacer()
+                                                Menu {
+                                                    Button(action: {
+                                                        selectedUserIdToBlock = post.userId
+                                                        showBlockConfirmation = true
+                                                    }) {
+                                                        Label("Block", systemImage: "hand.raised.fill")
+                                                    }
+                                                    Button(action: {
+                                                        if flaggedPosts.contains(post.id) {
+                                                            flaggedPosts.remove(post.id)
+                                                            unflagContent(post.id)
+                                                        } else {
+                                                            flaggedPosts.insert(post.id)
+                                                            flagContent(post.id, offendingUserId: post.userId)
+                                                        }
+                                                    }) {
+                                                        Label(flaggedPosts.contains(post.id) ? "Unflag" : "Flag", systemImage: flaggedPosts.contains(post.id) ? "flag.fill" : "flag")
+                                                    }
+                                                } label: {
+                                                    Image(systemName: "ellipsis.circle")
+                                                        .resizable()
+                                                        .frame(width: 16, height: 16)
+                                                        .foregroundColor(.gray)
+                                                }
+                                            }
+                                            
+                                            Text("Location: \(post.locationName)")
+                                                .font(.caption)
+                                                .foregroundColor(.white)
+                                            
+                                            KFImage(URL(string: post.imageUrl))
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fit)
+                                                .frame(maxWidth: UIScreen.main.bounds.width - 20)
+                                                .gesture(
+                                                    ExclusiveGesture(
+                                                        TapGesture(count: 2).onEnded {
+                                                            likePost(post) // Double tap to like
+                                                        },
+                                                        TapGesture(count: 1).onEnded {
+                                                            selectedImage = FullScreenImage(url: post.imageUrl) // Single tap for full screen
+                                                        }
+                                                    )
+                                                )
+                                            
+                                            // Buttons Below the Photo
+                                            HStack(spacing: 12) {
+                                                Button(action: { likePost(post) }) {
+                                                    Image(systemName: likedPosts.contains(post.id) ? "heart.fill" : "heart")
+                                                        .resizable()
+                                                        .frame(width: 16, height: 16)
+                                                        .foregroundColor(likedPosts.contains(post.id) ? .red : .gray)
+                                                }
+                                                
+                                                Button(action: {
+                                                    initiateChat(with: post.userId)
+                                                }) {
+                                                    Image(systemName: "message")
+                                                        .resizable()
+                                                        .frame(width: 16, height: 16)
+                                                        .foregroundColor(.gray)
+                                                }
+                                            }
+                                        }
+                                        .padding(.horizontal) // Retain horizontal padding for consistent spacing
+                                        .padding(.vertical, 5) // Retain vertical padding for spacing between posts
+                                        .background(Color.black) // Maintain dark theme
+                                    }
+                                }
+                                .padding(.top, 10)
+                            }
+                        }
                     } else {
                         // Scrollable feed content below the fixed header
                         
@@ -407,9 +511,145 @@ struct Feed: View {
             listenForUnreadNotifications()
             requestNotificationPermissions()
             fetchUnreadMessages()
-            fetchPosts()
-            print("[Info] Unread notification count badge: \(unreadNotificationsCount)")
+            //fetchPosts(refresh: true) // Fetch the feed on app load
+            
+            fetchFollowing { following in
+                self.following = following // Set the following list
+                fetchPosts(refresh: true) // Fetch posts after updating the following list
+            }
+            fetchPreviouslyViewedPosts()
         }
+    }
+    
+    func refreshPreviouslyViewedPosts() {
+        guard !previouslyViewedPosts.isEmpty else {
+            print("No previously viewed posts to refresh.")
+            return
+        }
+        previouslyViewedPosts.shuffle() // Randomize the order of previously viewed posts
+        self.previouslyViewedPosts = previouslyViewedPosts
+        print("[Info] Previously viewed posts refreshed.")
+    }
+    
+    func fetchPreviouslyViewedPosts() {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            print("[Error] User not authenticated.")
+            return
+        }
+
+        Firestore.firestore().collection("users").document(userId).getDocument { snapshot, error in
+            if let error = error {
+                print("[Error] Fetching previously viewed posts failed: \(error.localizedDescription)")
+                return
+            }
+
+            guard let data = snapshot?.data(),
+                  let viewedPostIds = data["viewedPosts"] as? [String],
+                  !viewedPostIds.isEmpty else {
+                print("[Info] No previously viewed posts found.")
+                DispatchQueue.main.async {
+                    self.previouslyViewedPosts = [] // Ensure spinner stops
+                }
+                return
+            }
+
+            // Fetch all previously viewed posts in one query (remove batching logic)
+            Firestore.firestore().collection("posts")
+                .whereField(FieldPath.documentID(), in: viewedPostIds)
+                .getDocuments { querySnapshot, error in
+                    if let error = error {
+                        print("[Error] Fetching previously viewed posts failed: \(error.localizedDescription)")
+                        DispatchQueue.main.async {
+                            self.previouslyViewedPosts = [] // Stop spinner even on error
+                        }
+                        return
+                    }
+
+                    guard let documents = querySnapshot?.documents else {
+                        print("[Info] No previously viewed posts found in query.")
+                        DispatchQueue.main.async {
+                            self.previouslyViewedPosts = [] // Ensure spinner stops
+                        }
+                        return
+                    }
+
+                    // Map Firestore documents into `Post` objects
+                    let posts = documents.compactMap { doc -> Post? in
+                        let data = doc.data()
+                        guard let userId = data["userId"] as? String,
+                              let imageUrl = data["imageUrl"] as? String,
+                              let timestamp = (data["timestamp"] as? Timestamp)?.dateValue() else {
+                            return nil
+                        }
+                        let locationName = data["locationName"] as? String ?? "Unknown location"
+                        return Post(id: doc.documentID, userId: userId, username: "Unknown", imageUrl: imageUrl, locationName: locationName, timestamp: timestamp)
+                    }
+
+                    DispatchQueue.main.async {
+                        // Show all previously viewed posts
+                        self.previouslyViewedPosts = posts
+                        print("[Info] Loaded all previously viewed posts: \(posts.count)")
+                    }
+                }
+        }
+    }
+
+
+    func fetchFollowing(completion: @escaping ([String]) -> Void) {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            print("Error: No authenticated user")
+            completion([])
+            return
+        }
+
+        Firestore.firestore().collection("users").document(userId).getDocument { snapshot, error in
+            if let error = error {
+                print("Error fetching following list: \(error)")
+                completion([])
+                return
+            }
+
+            guard let data = snapshot?.data(), let following = data["following"] as? [String] else {
+                print("No following list found.")
+                completion([])
+                return
+            }
+
+            completion(following)
+        }
+    }
+
+    
+    func listenForUnreadNotifications() {
+        guard let userId = Auth.auth().currentUser?.uid else {
+                print("[Error] User ID not found.")
+                return
+        }
+        
+        let db = Firestore.firestore()
+        db.collection("users")
+            .document(userId)
+            .collection("notifications")
+            .whereField("read", isEqualTo: false)
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("[Error] Fetching unread notifications failed: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let snapshot = snapshot else {
+                    print("[Warning] No snapshot data returned.")
+                    return
+                }
+                
+                print("[Info] Listener triggered. Unread notifications count: \(snapshot.documents.count)")
+                snapshot.documents.forEach { doc in
+                    print("[Info] Notification ID: \(doc.documentID), Data: \(doc.data())")
+                }
+                
+                // Update unread count
+                self.unreadNotificationsCount = snapshot.documents.count
+            }
     }
     
 // Function to listen for real-time updates to unread messages
@@ -446,44 +686,7 @@ struct Feed: View {
             }
         }
     }
-
-    // Function to remove the listener
-    func removeListener() {
-        listener?.remove()
-        listener = nil
-    }
     
-    func listenForUnreadNotifications() {
-        guard let userId = Auth.auth().currentUser?.uid else {
-                print("[Error] User ID not found.")
-                return
-        }
-        
-        let db = Firestore.firestore()
-        db.collection("users")
-            .document(userId)
-            .collection("notifications")
-            .whereField("read", isEqualTo: false)
-            .addSnapshotListener { snapshot, error in
-                if let error = error {
-                    print("[Error] Fetching unread notifications failed: \(error.localizedDescription)")
-                    return
-                }
-                
-                guard let snapshot = snapshot else {
-                    print("[Warning] No snapshot data returned.")
-                    return
-                }
-                
-                print("[Info] Listener triggered. Unread notifications count: \(snapshot.documents.count)")
-                snapshot.documents.forEach { doc in
-                    print("[Info] Notification ID: \(doc.documentID), Data: \(doc.data())")
-                }
-                
-                // Update unread count
-                self.unreadNotificationsCount = snapshot.documents.count
-            }
-    }
     
     private func markNotificationsAsRead() {
         let currentUserId = Auth.auth().currentUser?.uid ?? ""
@@ -773,8 +976,10 @@ struct Feed: View {
         isRefreshing = true
         isLoading = true
         posts.removeAll() // Clear existing posts
-        fetchPosts() // Re-fetch posts
-        isRefreshing = false
+        fetchPosts(refresh: true) // Fetch fresh posts
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { // Slight delay for smoother UI
+            self.isRefreshing = false
+        }
     }
 
     func markPostAsViewed(_ post: Post) {
@@ -830,10 +1035,17 @@ struct Feed: View {
     }
     
     // Fetch posts function with integrated blocked users check
-    func fetchPosts() {
+    func fetchPosts(refresh: Bool = false) {
         guard let userId = Auth.auth().currentUser?.uid else {
             print("Error: No authenticated user")
             isLoading = false
+            return
+        }
+        
+        // Only load cached posts if not refreshing
+        if !refresh {
+            loadCachedPosts()
+            isLoading = false // Stop further loading if just loading cached data
             return
         }
 
@@ -869,6 +1081,7 @@ struct Feed: View {
             fetchPostsFromFollowedUsers(following: following, viewedPosts: viewedPosts)
         }
     }
+
     
     func fetchPostsFromFollowedUsers(following: [String], viewedPosts: [String]) {
         let batchSize = 10
@@ -901,7 +1114,7 @@ struct Feed: View {
 
                         guard let userId = data["userId"] as? String,
                               let imageUrl = data["imageUrl"] as? String,
-                              let timestamp = data["timestamp"] as? Timestamp else {
+                              let timestamp = (data["timestamp"] as? Timestamp)?.dateValue() else {
                             continue
                         }
 
@@ -930,14 +1143,43 @@ struct Feed: View {
         }
     }
     
+    func loadCachedPosts() {
+        if let cachedData = UserDefaults.standard.data(forKey: "cachedPosts"),
+           let cachedPosts = try? JSONDecoder().decode([Post].self, from: cachedData) {
+            self.posts = cachedPosts
+            print("Loaded cached posts: \(cachedPosts.count)")
+        }
+    }
+    
+    func savePostsToCache(_ posts: [Post]) {
+        if let data = try? JSONEncoder().encode(posts) {
+            UserDefaults.standard.set(data, forKey: "cachedPosts")
+            print("Cached \(posts.count) posts.")
+        }
+    }
+    
     func checkBatchCompletion(_ completed: Int, totalBatches: Int, fetchedPosts: [Post]) {
-            if completed == totalBatches {
-                DispatchQueue.main.async {
-                    self.posts = fetchedPosts
-                    self.isLoading = false
-                    fetchUsernames(for: fetchedPosts)
-                }
+        if completed == totalBatches {
+            DispatchQueue.main.async {
+                // Create a set of existing post IDs for comparison
+                let existingPostIds = Set(self.posts.map { $0.id })
+                
+                // Filter out posts that are already in the feed
+                let newPosts = fetchedPosts.filter { !existingPostIds.contains($0.id) }
+                
+                // Append new posts to the existing feed
+                self.posts.append(contentsOf: newPosts)
+                
+                // Sort posts by timestamp to ensure the feed order is correct
+                self.posts.sort { $0.timestamp > $1.timestamp }
+                
+                self.isLoading = false
+                self.savePostsToCache(self.posts) // Cache updated posts
+                self.allPostsViewed = fetchedPosts.isEmpty // Update here
+                
+                fetchUsernames(for: fetchedPosts) // Fetch usernames for new posts
             }
+        }
     }
 
 
@@ -962,7 +1204,7 @@ struct Feed: View {
 
                 guard let userId = data["userId"] as? String,
                       let imageUrl = data["imageUrl"] as? String,
-                      let timestamp = data["timestamp"] as? Timestamp else {
+                      let timestamp = (data["timestamp"] as? Timestamp)?.dateValue() else {
                     continue
                 }
 

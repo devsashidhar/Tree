@@ -176,7 +176,7 @@ struct UserPostsView: View {
                         let data = document.data()
                         guard let imageUrl = data["imageUrl"] as? String else { continue }
                         let locationName = data["locationName"] as? String ?? "Unknown Location"
-                        let timestamp = data["timestamp"] as? Timestamp ?? Timestamp(date: Date())
+                        let timestamp = (data["timestamp"] as? Timestamp)?.dateValue() ?? Date()
                         
                         let post = Post(id: document.documentID,
                                         userId: userId,
