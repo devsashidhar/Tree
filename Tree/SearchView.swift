@@ -1,6 +1,7 @@
 import SwiftUI
 import FirebaseFirestore
 import FirebaseAuth
+import Combine
 
 struct SearchView: View {
     @State private var searchQuery: String = ""
@@ -9,6 +10,7 @@ struct SearchView: View {
     @State private var following: Set<String> = [] // Track users already followed for UI updates
     
     @EnvironmentObject var followManager: FollowManager
+    
 
     var body: some View {
         NavigationView {
@@ -22,7 +24,7 @@ struct SearchView: View {
                         .foregroundColor(.white) // Text in search bar
                         .background(Color.gray.opacity(0.2)) // Search bar background
                         .cornerRadius(8) // Rounded corners
-                        .onChange(of: searchQuery) {
+                        .onReceive(Just(searchQuery).removeDuplicates()) { _ in
                             performSearch() // Perform search whenever the query changes
                         }
                     if isLoading {
@@ -163,6 +165,8 @@ struct SearchView: View {
                 print("Successfully updated following list with: \(newFollowerId)")
                 DispatchQueue.main.async {
                     self.following.insert(newFollowerId) // Update local state to reflect UI changes
+                    UserDefaults.standard.set(true, forKey: "shouldReloadFeed")
+                    print("[Debug] shouldReloadFeed set to true after following new user")
                 }
             }
         }
@@ -184,9 +188,10 @@ struct SearchView: View {
     
     private func removeFollower(newFollowerId: String) {
         let userId = Auth.auth().currentUser?.uid ?? ""
-
-        let userRef = Firestore.firestore().collection("users").document(userId)
-
+        let db = Firestore.firestore()
+        
+        // Update the 'following' array of the current user
+        let userRef = db.collection("users").document(userId)
         userRef.updateData([
             "following": FieldValue.arrayRemove([newFollowerId])
         ]) { error in
@@ -195,11 +200,27 @@ struct SearchView: View {
             } else {
                 print("Successfully updated following list with: \(newFollowerId)")
                 DispatchQueue.main.async {
-                    following.remove(newFollowerId) // Update local state to reflect UI changes
+                    following.remove(newFollowerId)
+                    // Post notification
+                    NotificationCenter.default.post(name: Notification.Name("FollowerRemoved"), object: nil, userInfo: ["unfollowedUserId": newFollowerId])
                 }
             }
         }
+
+        // Update the 'followers' array of the user being unfollowed
+        let unfollowedUserRef = db.collection("users").document(newFollowerId)
+        unfollowedUserRef.updateData([
+            "followers": FieldValue.arrayRemove([userId])
+        ]) { error in
+            if let error = error {
+                print("Error updating followers list for unfollowed user: \(error)")
+            } else {
+                print("Successfully updated followers list for: \(newFollowerId)")
+            }
+        }
     }
+
+
 
     private func fetchFollowing() {
         guard let userId = Auth.auth().currentUser?.uid else { return }

@@ -274,10 +274,28 @@ struct AccountView: View {
             }
         }
     }
+    
+    func clearCachedData() {
+        UserDefaults.standard.removeObject(forKey: "cachedPreviouslyViewedPosts")
+        UserDefaults.standard.removeObject(forKey: "cachedPosts")
+        print("[Info] Cleared cached data.")
+    }
+
 
     func handleSignOut() {
         do {
             try Auth.auth().signOut()
+            
+            clearCachedData()
+            
+            // Clear Firestore persistence
+            Firestore.firestore().clearPersistence { error in
+                if let error = error {
+                    print("Error clearing Firestore persistence: \(error)")
+                } else {
+                    print("[Info] Firestore persistence cleared.")
+                }
+            }
             // Navigate back to the SignInView
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 if let window = windowScene.windows.first {

@@ -37,7 +37,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         application.registerForRemoteNotifications()
 
         // Add Firebase auth state listener
-        Auth.auth().addStateDidChangeListener { [weak self] auth, user in
+        _ = Auth.auth().addStateDidChangeListener { [weak self] auth, user in
             if let user = user {
                 print("[Debug] User logged in: \(user.uid). Checking FCM token...")
                 self?.handleUserLogin()
@@ -45,6 +45,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 print("[Warning] No authenticated user.")
             }
         }
+        UserDefaults.standard.set(true, forKey: "firstLaunch")
 
         print("[Debug] Application didFinishLaunchingWithOptions completed.")
         return true
@@ -154,6 +155,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 }
             }
     }
+
+
 }
 
 @main

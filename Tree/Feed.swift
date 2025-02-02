@@ -118,7 +118,6 @@ struct Post: Identifiable, Codable {
 struct Feed: View {
     @State private var posts: [Post] = []
     @State private var users: [String: String] = [:]
-    @State private var isRefreshing = false
     @State private var allPostsViewed = false
     @State private var isLoading = false
     @State private var selectedChatId: ChatIdentifier? // Use ChatIdentifier instead of String
@@ -157,6 +156,11 @@ struct Feed: View {
 
     @State private var isLoadingPreviouslyViewed: Bool = false
 
+    @State private var shouldReloadFeed = UserDefaults.standard.bool(forKey: "shouldReloadFeed")
+    
+    @State private var shouldIgnoreOnAppear = false
+    
+    @StateObject private var viewModel = FeedViewModel()
     
     var body: some View {
         NavigationView {
@@ -172,6 +176,18 @@ struct Feed: View {
                             .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
                             .tracking(2)
                         Spacer()
+                        
+                        // Refresh Button - Positioned before the notification and message buttons
+                        Button(action: {
+                            print("[Debug] Refresh button tapped. Reloading Feed...")
+                            loadFeed()
+                        }) {
+                            Image(systemName: "arrow.clockwise")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 24, height: 24) // Adjust size for consistency
+                                .foregroundColor(.white)
+                        }
                         
                         // Notification button
                         Button(action: {
@@ -233,6 +249,7 @@ struct Feed: View {
                     .padding()
                     .background(Color.black)
 
+
                     // Feed Content
                     if isLoading {
                         // Show loading spinner while posts are being fetched
@@ -263,12 +280,6 @@ struct Feed: View {
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 40)
 
-                            Text("Swipe down to refresh after following someone!")
-                                .font(.system(size: 14, weight: .light))
-                                .foregroundColor(.gray)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 40)
-                                .padding(.top, 10)
                         }
                         .frame(maxHeight: .infinity)
                     } else if posts.isEmpty && allPostsViewed {
@@ -457,9 +468,6 @@ struct Feed: View {
                             }
                             .padding(.top, 10)
                         }
-                        .refreshable {
-                            refreshFeed()
-                        }
                     }
 
                 }
@@ -509,115 +517,79 @@ struct Feed: View {
             }
         }
         .onAppear {
+            
             listenForUnreadNotifications()
             requestNotificationPermissions()
             fetchUnreadMessages()
-            //fetchPosts(refresh: true) // Fetch the feed on app load
             
-            loadCachedPreviouslyViewedPosts()
+            viewModel.listenForFollowerRemoval() // Register observer
             
-            fetchFollowing { following in
-                self.following = following // Set the following list
-                fetchPosts(refresh: true) // Fetch posts after updating the following list
+            NotificationCenter.default.addObserver(forName: Notification.Name("FeedShouldRefresh"), object: nil, queue: .main) { _ in
+                print("[Debug] Received FeedShouldRefresh notification. Reloading Feed...")
+                loadFeed()
             }
-            if posts.isEmpty && allPostsViewed {
-                fetchPreviouslyViewedPosts()
+            let firstLaunch = UserDefaults.standard.bool(forKey: "firstLaunch")
+                
+            print("[Debug] onAppear triggered - firstLaunch: \(firstLaunch)")
+
+            if firstLaunch {
+                print("[Debug] Reloading Feed due to app restart...")
+                loadFeed()
+                UserDefaults.standard.set(false, forKey: "firstLaunch") // ✅ Reset flag after loading
+            } else {
+                print("[Debug] Keeping current Feed, falling back to cached posts...")
+                fetchFollowing { following in
+                    fallbackToCachedPreviouslyViewedPosts(following: following) // ✅ Pass following list
+                }
             }
+            
         }
     }
-    
-    func refreshPreviouslyViewedPosts() {
-        guard !previouslyViewedPosts.isEmpty else {
-            print("No previously viewed posts to refresh.")
-            return
-        }
-        previouslyViewedPosts.shuffle() // Randomize the order of previously viewed posts
-        self.previouslyViewedPosts = previouslyViewedPosts
-        print("[Info] Previously viewed posts refreshed.")
-    }
-    
-    func fetchPreviouslyViewedPosts() {
+
+
+    func loadFeed() {
         guard let userId = Auth.auth().currentUser?.uid else {
             print("[Error] User not authenticated.")
-            self.previouslyViewedPosts = []
-            self.isLoadingPreviouslyViewed = false
+            self.posts = []
+            self.isLoading = false
             return
         }
 
-        isLoadingPreviouslyViewed = true
-
-        Firestore.firestore().collection("users").document(userId).getDocument { snapshot, error in
-            if let error = error {
-                print("[Error] Fetching viewed posts failed: \(error.localizedDescription)")
-                DispatchQueue.main.async {
-                    self.previouslyViewedPosts = []
-                    self.isLoadingPreviouslyViewed = false
-                }
+        self.isLoading = true
+        fetchFollowing { following in
+            if following.isEmpty {
+                print("[Info] User is not following anyone. Clearing feed.")
+                self.posts = [] // ✅ Clear feed if no one is followed
+                self.isLoading = false
                 return
             }
 
-            guard let data = snapshot?.data(),
-                  let viewedPostIds = data["viewedPosts"] as? [String],
-                  !viewedPostIds.isEmpty else {
-                print("[Info] No viewed posts found.")
-                DispatchQueue.main.async {
-                    self.previouslyViewedPosts = []
-                    self.isLoadingPreviouslyViewed = false
+            Firestore.firestore().collection("users").document(userId).getDocument { snapshot, error in
+                if let error = error {
+                    print("[Error] Failed to fetch viewedPosts: \(error.localizedDescription)")
+                    self.posts = []
+                    self.isLoading = false
+                    return
                 }
-                return
+
+                let viewedPosts = snapshot?.data()?["viewedPosts"] as? [String] ?? []
+
+                fetchUnseenPosts(following: following, viewedPosts: viewedPosts) { unseenPosts in
+                    if unseenPosts.isEmpty {
+                        print("[Info] No new posts, filtering cached posts...")
+                        self.fallbackToCachedPreviouslyViewedPosts(following: following) // ✅ Pass the updated following list
+                    } else {
+                        print("[Info] Displaying unseen posts in the Feed.")
+                        self.posts = unseenPosts
+                        self.isLoading = false
+                    }
+                }
             }
-
-            Firestore.firestore().collection("posts")
-                .whereField(FieldPath.documentID(), in: viewedPostIds)
-                .getDocuments { querySnapshot, error in
-                    if let error = error {
-                        print("[Error] Fetching posts failed: \(error.localizedDescription)")
-                        DispatchQueue.main.async {
-                            self.previouslyViewedPosts = []
-                            self.isLoadingPreviouslyViewed = false
-                        }
-                        return
-                    }
-
-                    guard let documents = querySnapshot?.documents else {
-                        print("[Info] No posts found for viewedPostIds.")
-                        DispatchQueue.main.async {
-                            self.previouslyViewedPosts = []
-                            self.isLoadingPreviouslyViewed = false
-                        }
-                        return
-                    }
-
-                    let posts = documents.compactMap { doc -> Post? in
-                        let data = doc.data()
-                        guard let userId = data["userId"] as? String,
-                              let imageUrl = data["imageUrl"] as? String,
-                              let timestamp = (data["timestamp"] as? Timestamp)?.dateValue() else {
-                            return nil
-                        }
-                        let locationName = data["locationName"] as? String ?? "Unknown location"
-                        return Post(
-                            id: doc.documentID,
-                            userId: userId,
-                            username: "Unknown", // Placeholder, updated below
-                            imageUrl: imageUrl,
-                            locationName: locationName,
-                            timestamp: timestamp
-                        )
-                    }
-
-                    DispatchQueue.main.async {
-                        self.previouslyViewedPosts = posts
-                        self.fetchUsernames(for: posts) {
-                            self.savePreviouslyViewedPostsToCache(self.previouslyViewedPosts)
-                            self.isLoadingPreviouslyViewed = false
-                            print("[Info] Successfully loaded and cached previously viewed posts.")
-                        }
-                    }
-                }
         }
     }
 
+
+    
     func fetchFollowing(completion: @escaping ([String]) -> Void) {
         guard let userId = Auth.auth().currentUser?.uid else {
             print("Error: No authenticated user")
@@ -641,7 +613,355 @@ struct Feed: View {
             completion(following)
         }
     }
+    
+    func fetchUnseenPosts(following: [String], viewedPosts: [String], completion: @escaping ([Post]) -> Void) {
+        let batchSize = 10
+        let batches = stride(from: 0, to: following.count, by: batchSize).map {
+            Array(following[$0..<min($0 + batchSize, following.count)])
+        }
 
+        var unseenPosts: [Post] = []
+        let group = DispatchGroup()
+
+        for batch in batches {
+            group.enter()
+            Firestore.firestore().collection("posts")
+                .whereField("userId", in: batch)
+                .getDocuments { snapshot, error in
+                    defer { group.leave() }
+
+                    if let error = error {
+                        print("[Error] Fetching posts for batch: \(error)")
+                        return
+                    }
+
+                    guard let documents = snapshot?.documents else { return }
+
+                    for document in documents {
+                        let data = document.data()
+                        // Removed the unnecessary cast for document.documentID
+                        let postId = document.documentID
+
+                        guard let userId = data["userId"] as? String,
+                              let imageUrl = data["imageUrl"] as? String,
+                              let timestamp = (data["timestamp"] as? Timestamp)?.dateValue() else {
+                            continue
+                        }
+
+                        if viewedPosts.contains(postId) { continue }
+
+                        let locationName = data["locationName"] as? String ?? "Unknown location"
+                        let post = Post(
+                            id: postId,
+                            userId: userId,
+                            username: "Unknown",
+                            imageUrl: imageUrl,
+                            locationName: locationName,
+                            timestamp: timestamp
+                        )
+                        unseenPosts.append(post)
+                    }
+                }
+        }
+
+        group.notify(queue: .main) {
+            if unseenPosts.isEmpty {
+                completion([])
+                return
+            }
+
+            // Fetch usernames for the unseen posts before returning them
+            self.fetchUsernames(for: unseenPosts) {
+                let postsWithUsernames = unseenPosts.map { post in
+                    Post(
+                        id: post.id,
+                        userId: post.userId,
+                        username: self.users[post.userId] ?? "Unknown", // Update username from fetched data
+                        imageUrl: post.imageUrl,
+                        locationName: post.locationName,
+                        timestamp: post.timestamp
+                    )
+                }
+                completion(postsWithUsernames)
+            }
+        }
+    }
+    
+    func fallbackToCachedPreviouslyViewedPosts(following: [String]) {
+        loadCachedPreviouslyViewedPosts { cachedPosts in
+            let filteredPosts = cachedPosts.filter { following.contains($0.userId) } // ✅ Only keep posts from followed users
+            
+            if filteredPosts.isEmpty {
+                print("[Info] No valid cached posts after filtering.")
+                self.posts = [] // Clear feed if no valid posts remain
+            } else {
+                print("[Info] Showing filtered cached posts.")
+                self.posts = filteredPosts
+            }
+
+            self.isLoading = false
+        }
+    }
+
+
+    func fetchPreviouslyViewedPosts(completion: @escaping ([Post]) -> Void) {
+        if let cachedData = UserDefaults.standard.data(forKey: "cachedPreviouslyViewedPosts"),
+           let cachedPosts = try? JSONDecoder().decode([Post].self, from: cachedData) {
+            completion(cachedPosts)
+        } else {
+            print("[Info] No cached previously viewed posts.")
+            completion([])
+        }
+    }
+    
+    func loadCachedPreviouslyViewedPosts(completion: @escaping ([Post]) -> Void) {
+        if let cachedData = UserDefaults.standard.data(forKey: "cachedPreviouslyViewedPosts"),
+           let cachedPosts = try? JSONDecoder().decode([Post].self, from: cachedData) {
+            
+            print("Loaded \(cachedPosts.count) cached previously viewed posts.")
+            
+            // Fetch usernames for these cached posts
+            self.fetchUsernames(for: cachedPosts) {
+                DispatchQueue.main.async {
+                    // Map posts to include updated usernames from the global `users` dictionary
+                    let updatedPosts = cachedPosts.map { post in
+                        Post(
+                            id: post.id,
+                            userId: post.userId,
+                            username: self.users[post.userId] ?? post.username, // Use updated username
+                            imageUrl: post.imageUrl,
+                            locationName: post.locationName,
+                            timestamp: post.timestamp,
+                            likes: post.likes
+                        )
+                    }
+                    print("Updated previously viewed posts with usernames.")
+                    completion(updatedPosts)
+                }
+            }
+        } else {
+            print("[Info] No cached previously viewed posts found.")
+            completion([])
+        }
+    }
+
+    func savePreviouslyViewedPostsToCache(_ newPosts: [Post]) {
+        // Load existing cached posts first
+        var cachedPosts: [Post] = []
+        
+        if let cachedData = UserDefaults.standard.data(forKey: "cachedPreviouslyViewedPosts"),
+           let loadedPosts = try? JSONDecoder().decode([Post].self, from: cachedData) {
+            cachedPosts = loadedPosts
+        }
+
+        // Ensure all posts include usernames before saving
+        let postsWithUsernames = newPosts.map { post in
+            Post(
+                id: post.id,
+                userId: post.userId,
+                username: users[post.userId] ?? post.username, // Include username
+                imageUrl: post.imageUrl,
+                locationName: post.locationName,
+                timestamp: post.timestamp,
+                likes: post.likes
+            )
+        }
+
+        // Merge new posts with cached ones, ensuring uniqueness
+        let updatedPosts = (cachedPosts + postsWithUsernames).uniqued(by: \.id)
+
+        print("[Debug] Updating cache with \(updatedPosts.count) previously viewed posts.")
+
+        if let data = try? JSONEncoder().encode(updatedPosts) {
+            UserDefaults.standard.set(data, forKey: "cachedPreviouslyViewedPosts")
+            print("[Success] Cached \(updatedPosts.count) previously viewed posts.")
+        } else {
+            print("[Error] Failed to update cache.")
+        }
+    }
+
+    
+    func fetchUsernames(for posts: [Post], completion: (() -> Void)? = nil) {
+        // Extract unique user IDs from posts
+        let userIds = Array(Set(posts.map { $0.userId }))
+
+        guard !userIds.isEmpty else {
+            print("No user IDs to fetch.")
+            completion?()
+            return
+        }
+
+        let batchSize = 10
+        let batches = stride(from: 0, to: userIds.count, by: batchSize).map {
+            Array(userIds[$0..<min($0 + batchSize, userIds.count)])
+        }
+
+        var fetchedUsers: [String: String] = [:]
+        let group = DispatchGroup()
+
+        for batch in batches {
+            group.enter()
+            Firestore.firestore().collection("users")
+                .whereField(FieldPath.documentID(), in: batch)
+                .getDocuments { (snapshot, error) in
+                    defer { group.leave() }
+
+                    guard let documents = snapshot?.documents else {
+                        print("Error fetching user documents: \(String(describing: error))")
+                        return
+                    }
+
+                    for document in documents {
+                        let data = document.data()
+                        if let username = data["username"] as? String {
+                            fetchedUsers[document.documentID] = username
+                        }
+                    }
+                }
+        }
+
+        group.notify(queue: .main) {
+            // Merge fetched usernames into the global `users` dictionary
+            self.users.merge(fetchedUsers) { (_, new) in new }
+            print("Fetched and merged \(fetchedUsers.count) usernames.")
+            completion?()
+        }
+    }
+
+
+    
+    func appendUniquePosts(to target: inout [Post], from newPosts: [Post]) {
+        let existingIds = Set(target.map { $0.id })
+        let uniquePosts = newPosts.filter { !existingIds.contains($0.id) }
+        target.append(contentsOf: uniquePosts)
+    }
+
+
+    func markPostAsViewed(_ post: Post) {
+        let userId = Auth.auth().currentUser?.uid ?? ""
+
+        let userRef = Firestore.firestore().collection("users").document(userId)
+
+        userRef.updateData([
+            "viewedPosts": FieldValue.arrayUnion([post.id])
+        ]) { error in
+            if let error = error {
+                print("Error updating viewedPosts: \(error)")
+            } else {
+                print("Successfully updated viewedPosts with post: \(post.id)")
+                
+                // Add post to cache immediately
+                DispatchQueue.main.async {
+                    self.appendUniquePosts(to: &self.previouslyViewedPosts, from: [post])
+                    self.savePreviouslyViewedPostsToCache(self.previouslyViewedPosts)
+                }
+            }
+        }
+    }
+
+    
+    // Like a post
+    func likePost(_ post: Post) {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+
+        let db = Firestore.firestore()
+
+        if likedPosts.contains(post.id) {
+            // If already liked, remove the like
+            db.collection("posts").document(post.id).updateData([
+                "likes": FieldValue.arrayRemove([currentUserId])
+            ]) { error in
+                if let error = error {
+                    print("Error removing like: \(error)")
+                    return
+                }
+                likedPosts.remove(post.id)
+                print("Like removed for post: \(post.id)")
+            }
+        } else {
+            // If not liked, add the like
+            db.collection("posts").document(post.id).updateData([
+                "likes": FieldValue.arrayUnion([currentUserId])
+            ]) { error in
+                if let error = error {
+                    print("Error adding like: \(error)")
+                    return
+                }
+                likedPosts.insert(post.id)
+                print("Like added for post: \(post.id)")
+
+            }
+        }
+    }
+
+    private func blockUser(_ userId: String) {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        let userRef = Firestore.firestore().collection("users").document(currentUserId)
+        
+        userRef.updateData([
+            "blockedUsers": FieldValue.arrayUnion([userId]),
+            "following": FieldValue.arrayRemove([userId]) // Remove from following
+        ]) { error in
+            if let error = error {
+                print("Error blocking user: \(error)")
+            } else {
+                blockedUsers.append(userId) // Update local state
+                showBlockConfirmation = false
+                selectedUserIdToBlock = nil
+            }
+        }
+    }
+
+    private func unblockUser(_ userId: String) {
+            guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+            let userRef = Firestore.firestore().collection("users").document(currentUserId)
+            
+            userRef.updateData([
+                "blockedUsers": FieldValue.arrayRemove([userId]),
+                "following": FieldValue.arrayUnion([userId]) // Re-add to following
+            ]) { error in
+                if let error = error {
+                    print("Error unblocking user: \(error)")
+                } else {
+                    blockedUsers.removeAll { $0 == userId } // Update local state
+                    print("User \(userId) successfully unblocked and re-added to following.")
+                }
+            }
+    }
+    
+    // Function to fetch unread messages count
+    func fetchUnreadMessages() {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        ChatService().fetchUnreadMessagesCount(forUserId: userId) { result in
+            switch result {
+            case .success(let count):
+                self.unreadMessagesCount = count
+            case .failure(let error):
+                print("Error fetching unread messages count: \(error)")
+            }
+        }
+    }
+
+    func initiateChat(with userId: String) {
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            print("Error: No authenticated user")
+            return
+        }
+
+        // Debugging: Print the current user and the user we're trying to initiate a chat with
+        print("Initiating chat between \(currentUserId) and \(userId)")
+
+        ChatService().getOrCreateChat(forUsers: [currentUserId, userId]) { result in
+            switch result {
+            case .success(let chatId):
+                // Wrap the chatId and userIds in ChatIdentifier
+                self.selectedChatId = ChatIdentifier(id: chatId, userIds: [currentUserId, userId]) // Pass userIds array here
+            case .failure(let error):
+                print("Error initiating chat: \(error)")
+            }
+        }
+    }
     
     func listenForUnreadNotifications() {
         guard let userId = Auth.auth().currentUser?.uid else {
@@ -693,8 +1013,8 @@ struct Feed: View {
             
             // Count chats with unread messages for the current user
             let unreadCount = documents.filter { document in
-                if let chatData = document.data() as? [String: Any],
-                   let messages = chatData["messages"] as? [[String: Any]] {
+                let chatData = document.data()
+                if let messages = chatData["messages"] as? [[String: Any]] {
                     return messages.contains { message in
                         let isRead = message["isRead"] as? Bool ?? true
                         let receiverId = message["receiverId"] as? String ?? ""
@@ -755,10 +1075,14 @@ struct Feed: View {
                         print("Notifications permission denied.")
                     }
                 }
-            case .authorized, .provisional:
+            case .authorized:
                 print("Notifications already authorized.")
+            case .provisional:
+                print("Notifications provisionally authorized.")
             case .denied:
                 print("Notifications were previously denied. Encourage the user to enable them in settings.")
+            case .ephemeral:
+                print("Notifications authorized for an ephemeral session.")
             @unknown default:
                 print("Unknown notification settings state. No action taken.")
             }
@@ -804,68 +1128,7 @@ struct Feed: View {
                 print("[Info] Parsed notifications: \(self.notifications)")
             }
     }
-
-
-
-    // Notify the backend about the like
-    func notifyBackendOfLike(postId: String, userId: String) {
-        guard let url = URL(string: "https://your-backend-url.com/like-notification") else { return }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body: [String: Any] = [
-            "postId": postId,
-            "userId": userId
-        ]
-
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
-        } catch {
-            print("Error serializing JSON body: \(error)")
-            return
-        }
-
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("Error sending like notification to backend: \(error)")
-                return
-            }
-
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
-                print("Notification triggered successfully for post: \(postId)")
-            } else {
-                print("Unexpected response from backend for post: \(postId)")
-            }
-        }.resume()
-    }
     
-    private func processUserPosts(completion: @escaping ([String]) -> Void) {
-        let db = Firestore.firestore()
-        let currentUserId = Auth.auth().currentUser?.uid ?? ""
-        var notifications: [String] = []
-        
-        db.collection("posts").whereField("userId", isEqualTo: currentUserId).getDocuments { snapshot, error in
-            if let documents = snapshot?.documents {
-                for document in documents {
-                    let postId = document.documentID
-                    NotificationManager.shared.checkLikesAndNotifyUser(postId: postId)
-                    
-                    // Add notification for likes
-                    let data = document.data()
-                    let currentLikes = (data["likes"] as? [String])?.count ?? 0
-                    if currentLikes > 0 {
-                        notifications.append("Your post has \(currentLikes) likes!")
-                    }
-                }
-                completion(notifications)
-            } else {
-                print("Error fetching posts: \(error?.localizedDescription ?? "Unknown error")")
-                completion([])
-            }
-        }
-    }
 
 
     func flagContent(_ postId: String, offendingUserId: String) {
@@ -920,458 +1183,13 @@ struct Feed: View {
             }
         }
     }
-
-
     
-    // Function to fetch unread messages count
-    func fetchUnreadMessages() {
-        guard let userId = Auth.auth().currentUser?.uid else { return }
-        
-        ChatService().fetchUnreadMessagesCount(forUserId: userId) { result in
-            switch result {
-            case .success(let count):
-                self.unreadMessagesCount = count
-            case .failure(let error):
-                print("Error fetching unread messages count: \(error)")
-            }
-        }
+}
+
+// Helper function to remove duplicates based on post ID
+extension Array {
+    func uniqued<T: Hashable>(by keyPath: KeyPath<Element, T>) -> [Element] {
+        var seen = Set<T>()
+        return filter { seen.insert($0[keyPath: keyPath]).inserted }
     }
-
-    func initiateChat(with userId: String) {
-        guard let currentUserId = Auth.auth().currentUser?.uid else {
-            print("Error: No authenticated user")
-            return
-        }
-
-        // Debugging: Print the current user and the user we're trying to initiate a chat with
-        print("Initiating chat between \(currentUserId) and \(userId)")
-
-        ChatService().getOrCreateChat(forUsers: [currentUserId, userId]) { result in
-            switch result {
-            case .success(let chatId):
-                // Wrap the chatId and userIds in ChatIdentifier
-                self.selectedChatId = ChatIdentifier(id: chatId, userIds: [currentUserId, userId]) // Pass userIds array here
-            case .failure(let error):
-                print("Error initiating chat: \(error)")
-            }
-        }
-    }
-
-    private func blockUser(_ userId: String) {
-        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
-        let userRef = Firestore.firestore().collection("users").document(currentUserId)
-        
-        userRef.updateData([
-            "blockedUsers": FieldValue.arrayUnion([userId]),
-            "following": FieldValue.arrayRemove([userId]) // Remove from following
-        ]) { error in
-            if let error = error {
-                print("Error blocking user: \(error)")
-            } else {
-                blockedUsers.append(userId) // Update local state
-                showBlockConfirmation = false
-                selectedUserIdToBlock = nil
-            }
-        }
-    }
-
-    private func unblockUser(_ userId: String) {
-            guard let currentUserId = Auth.auth().currentUser?.uid else { return }
-            let userRef = Firestore.firestore().collection("users").document(currentUserId)
-            
-            userRef.updateData([
-                "blockedUsers": FieldValue.arrayRemove([userId]),
-                "following": FieldValue.arrayUnion([userId]) // Re-add to following
-            ]) { error in
-                if let error = error {
-                    print("Error unblocking user: \(error)")
-                } else {
-                    blockedUsers.removeAll { $0 == userId } // Update local state
-                    print("User \(userId) successfully unblocked and re-added to following.")
-                }
-            }
-    }
-    
-
-    // Refresh feed functionality
-    func refreshFeed() {
-        print("Refreshing feed...")
-        isRefreshing = true
-        isLoading = true
-        posts.removeAll() // Clear existing posts
-        fetchPosts(refresh: true) // Fetch fresh posts
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { // Slight delay for smoother UI
-            self.isRefreshing = false
-        }
-    }
-
-    func markPostAsViewed(_ post: Post) {
-        let userId = Auth.auth().currentUser?.uid ?? ""
-
-        let userRef = Firestore.firestore().collection("users").document(userId)
-
-        userRef.updateData([
-            "viewedPosts": FieldValue.arrayUnion([post.id])
-        ]) { error in
-            if let error = error {
-                print("Error updating viewedPosts: \(error)")
-            } else {
-                print("Successfully updated viewedPosts with post: \(post.id)")
-            }
-        }
-    }
-    
-    // Like a post
-    func likePost(_ post: Post) {
-        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
-
-        let db = Firestore.firestore()
-
-        if likedPosts.contains(post.id) {
-            // If already liked, remove the like
-            db.collection("posts").document(post.id).updateData([
-                "likes": FieldValue.arrayRemove([currentUserId])
-            ]) { error in
-                if let error = error {
-                    print("Error removing like: \(error)")
-                    return
-                }
-                likedPosts.remove(post.id)
-                print("Like removed for post: \(post.id)")
-            }
-        } else {
-            // If not liked, add the like
-            db.collection("posts").document(post.id).updateData([
-                "likes": FieldValue.arrayUnion([currentUserId])
-            ]) { error in
-                if let error = error {
-                    print("Error adding like: \(error)")
-                    return
-                }
-                likedPosts.insert(post.id)
-                print("Like added for post: \(post.id)")
-
-                // Notify the backend about the like
-                notifyBackendOfLike(postId: post.id, userId: post.userId)
-            }
-        }
-    }
-    
-    // Fetch posts function with integrated blocked users check
-    func fetchPosts(refresh: Bool = false) {
-        guard let userId = Auth.auth().currentUser?.uid else {
-            print("Error: No authenticated user")
-            isLoading = false
-            return
-        }
-        
-        // Only load cached posts if not refreshing
-        if !refresh {
-            loadCachedPosts()
-            isLoading = false // Stop further loading if just loading cached data
-            return
-        }
-
-        let userRef = Firestore.firestore().collection("users").document(userId)
-        userRef.getDocument { (snapshot, error) in
-            if let error = error {
-                print("Error fetching user document: \(error)")
-                self.posts = [] // Clear the feed
-                self.isLoading = false
-                return
-            }
-
-            guard let data = snapshot?.data() else {
-                print("User document does not exist, unable to fetch posts.")
-                self.posts = [] // Clear the feed
-                self.isLoading = false
-                return
-            }
-            
-            // Fetch viewed posts list from the user document
-            let viewedPosts = data["viewedPosts"] as? [String] ?? []
-            
-            let following = data["following"] as? [String] ?? []
-            
-            // If no followed users, display an empty feed
-            if following.isEmpty {
-                print("Feed is empty. Follow users to see posts!")
-                self.posts = [] // Clear the feed
-                self.isLoading = false
-                return
-            }
-            
-            fetchPostsFromFollowedUsers(following: following, viewedPosts: viewedPosts)
-        }
-    }
-
-    
-    func fetchPostsFromFollowedUsers(following: [String], viewedPosts: [String]) {
-        let batchSize = 10
-        let batches = stride(from: 0, to: following.count, by: batchSize).map {
-            Array(following[$0..<min($0 + batchSize, following.count)])
-        }
-
-        var fetchedPosts: [Post] = []
-        var batchFetchesCompleted = 0
-
-        for batch in batches {
-            Firestore.firestore().collection("posts")
-                .whereField("userId", in: batch)
-                .getDocuments { snapshot, error in
-                    if let error = error {
-                        print("Error fetching posts for batch: \(error)")
-                        batchFetchesCompleted += 1
-                        checkBatchCompletion(batchFetchesCompleted, totalBatches: batches.count, fetchedPosts: fetchedPosts)
-                        return
-                    }
-
-                    guard let documents = snapshot?.documents else {
-                        batchFetchesCompleted += 1
-                        checkBatchCompletion(batchFetchesCompleted, totalBatches: batches.count, fetchedPosts: fetchedPosts)
-                        return
-                    }
-
-                    for document in documents {
-                        let data = document.data()
-
-                        guard let userId = data["userId"] as? String,
-                              let imageUrl = data["imageUrl"] as? String,
-                              let timestamp = (data["timestamp"] as? Timestamp)?.dateValue() else {
-                            continue
-                        }
-
-                        if viewedPosts.contains(document.documentID) {
-                            continue
-                        }
-
-                        let locationName = data["locationName"] as? String ?? "Unknown location"
-                        let post = Post(
-                            id: document.documentID,
-                            userId: userId,
-                            username: "Unknown",
-                            imageUrl: imageUrl,
-                            locationName: locationName,
-                            timestamp: timestamp
-                        )
-                        fetchedPosts.append(post)
-                        
-                        // Trigger notification monitoring for likes
-                        NotificationManager.shared.checkLikesAndNotifyUser(postId: post.id)
-                    }
-
-                    batchFetchesCompleted += 1
-                    checkBatchCompletion(batchFetchesCompleted, totalBatches: batches.count, fetchedPosts: fetchedPosts)
-                }
-        }
-    }
-    
-    func loadCachedPosts() -> [Post]? {
-        if let cachedData = UserDefaults.standard.data(forKey: "cachedPosts"),
-           let cachedPosts = try? JSONDecoder().decode([Post].self, from: cachedData) {
-            print("[Info] Loaded \(cachedPosts.count) cached posts with usernames.")
-            return cachedPosts
-        }
-        return nil
-    }
-
-    func savePostsToCache(_ posts: [Post]) {
-        let postsWithUsernames = posts.map { post in
-            // Ensure username is included when saving
-            Post(
-                id: post.id,
-                userId: post.userId,
-                username: users[post.userId] ?? "Unknown",
-                imageUrl: post.imageUrl,
-                locationName: post.locationName,
-                timestamp: post.timestamp,
-                likes: post.likes
-            )
-        }
-
-        if let data = try? JSONEncoder().encode(postsWithUsernames) {
-            UserDefaults.standard.set(data, forKey: "cachedPosts")
-            print("[Info] Cached \(postsWithUsernames.count) posts with usernames.")
-        }
-    }
-
-    
-    func loadCachedPreviouslyViewedPosts() {
-        if let cachedData = UserDefaults.standard.data(forKey: "cachedPreviouslyViewedPosts"),
-           let cachedPosts = try? JSONDecoder().decode([Post].self, from: cachedData) {
-            
-            print("Loaded \(cachedPosts.count) cached previously viewed posts.")
-
-            // Fetch usernames for these cached posts
-            self.fetchUsernames(for: cachedPosts) {
-                DispatchQueue.main.async {
-                    // Map posts to include usernames from the global `users` dictionary
-                    self.previouslyViewedPosts = cachedPosts.map { post in
-                        Post(
-                            id: post.id,
-                            userId: post.userId,
-                            username: self.users[post.userId] ?? post.username, // Use updated username
-                            imageUrl: post.imageUrl,
-                            locationName: post.locationName,
-                            timestamp: post.timestamp,
-                            likes: post.likes
-                        )
-                    }
-                    print("Updated previously viewed posts with usernames.")
-                }
-            }
-        }
-    }
-
-
-    func savePreviouslyViewedPostsToCache(_ posts: [Post]) {
-        // Include usernames when caching posts
-        let postsWithUsernames = posts.map { post in
-            Post(
-                id: post.id,
-                userId: post.userId,
-                username: users[post.userId] ?? post.username, // Ensure username is included
-                imageUrl: post.imageUrl,
-                locationName: post.locationName,
-                timestamp: post.timestamp,
-                likes: post.likes
-            )
-        }
-
-        if let data = try? JSONEncoder().encode(postsWithUsernames) {
-            UserDefaults.standard.set(data, forKey: "cachedPreviouslyViewedPosts")
-            print("Cached \(postsWithUsernames.count) previously viewed posts.")
-        }
-    }
-
-
-
-    
-    func checkBatchCompletion(_ completed: Int, totalBatches: Int, fetchedPosts: [Post]) {
-        if completed == totalBatches {
-            DispatchQueue.main.async {
-                // Create a set of existing post IDs for comparison
-                let existingPostIds = Set(self.posts.map { $0.id })
-                
-                // Filter out posts that are already in the feed
-                let newPosts = fetchedPosts.filter { !existingPostIds.contains($0.id) }
-                
-                // Append new posts to the existing feed
-                self.posts.append(contentsOf: newPosts)
-                
-                // Sort posts by timestamp to ensure the feed order is correct
-                self.posts.sort { $0.timestamp > $1.timestamp }
-                
-                self.isLoading = false
-                self.savePostsToCache(self.posts) // Cache updated posts
-                self.allPostsViewed = fetchedPosts.isEmpty // Update here
-                
-                fetchUsernames(for: fetchedPosts) // Fetch usernames for new posts
-            }
-        }
-    }
-
-
-    func fetchAllPosts() {
-        Firestore.firestore().collection("posts").getDocuments { (snapshot, error) in
-            if let error = error {
-                print("Error fetching posts: \(error)")
-                isLoading = false
-                return
-            }
-
-            guard let documents = snapshot?.documents else {
-                print("No documents found")
-                allPostsViewed = true
-                isLoading = false
-                return
-            }
-
-            var fetchedPosts: [Post] = []
-            for document in documents {
-                let data = document.data()
-
-                guard let userId = data["userId"] as? String,
-                      let imageUrl = data["imageUrl"] as? String,
-                      let timestamp = (data["timestamp"] as? Timestamp)?.dateValue() else {
-                    continue
-                }
-
-                let locationName = data["locationName"] as? String ?? "Unknown location"
-
-                let post = Post(id: document.documentID,
-                                userId: userId,
-                                username: "Unknown",
-                                imageUrl: imageUrl,
-                                locationName: locationName,
-                                timestamp: timestamp)
-
-                fetchedPosts.append(post)
-            }
-
-            DispatchQueue.main.async {
-                self.posts = fetchedPosts
-                self.allPostsViewed = fetchedPosts.isEmpty
-                self.isLoading = false
-                self.fetchUsernames(for: fetchedPosts)
-            }
-        }
-    }
-
-
-    func fetchUsernames(for posts: [Post], completion: (() -> Void)? = nil) {
-        // Extract unique user IDs from posts
-        let userIds = Array(Set(posts.map { $0.userId }))
-
-        guard !userIds.isEmpty else {
-            print("No user IDs to fetch.")
-            completion?()
-            return
-        }
-
-        let batchSize = 10
-        let batches = stride(from: 0, to: userIds.count, by: batchSize).map {
-            Array(userIds[$0..<min($0 + batchSize, userIds.count)])
-        }
-
-        // Track the number of completed batches
-        var completedBatches = 0
-        var fetchedUsers: [String: String] = [:]
-
-        for batch in batches {
-            Firestore.firestore().collection("users")
-                .whereField(FieldPath.documentID(), in: batch)
-                .getDocuments { (snapshot, error) in
-                    guard let documents = snapshot?.documents else {
-                        print("Error fetching user documents: \(String(describing: error))")
-                        completedBatches += 1
-                        if completedBatches == batches.count {
-                            // Ensure completion is called even if some batches fail
-                            self.users.merge(fetchedUsers) { (_, new) in new }
-                            completion?()
-                        }
-                        return
-                    }
-
-                    for document in documents {
-                        let data = document.data()
-                        if let username = data["username"] as? String {
-                            fetchedUsers[document.documentID] = username
-                        }
-                    }
-
-                    completedBatches += 1
-                    if completedBatches == batches.count {
-                        // Merge fetched usernames into the global `users` dictionary
-                        DispatchQueue.main.async {
-                            self.users.merge(fetchedUsers) { (_, new) in new }
-                            print("Fetched and merged \(fetchedUsers.count) usernames.")
-                            completion?()
-                        }
-                    }
-                }
-        }
-    }
-
-    
 }
