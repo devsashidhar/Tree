@@ -98,6 +98,49 @@ struct ZoomableImageView: View {
     }
 }
 
+struct ConditionalFrameModifier: ViewModifier {
+    @State private var isLandscape: Bool? = nil
+    let imageUrl: String
+
+    func body(content: Content) -> some View {
+        Group {
+            if let isLandscape = isLandscape {
+                if isLandscape {
+                    content
+                        .aspectRatio(contentMode: .fill) // Fill width, no stretching
+                        .frame(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.width * 0.95) // Bigger height
+                        .clipped() // Remove overflow
+                } else {
+                    content
+                        .aspectRatio(contentMode: .fit) // Keeps portrait images natural
+                        .frame(width: UIScreen.main.bounds.width) // Full width
+                }
+            } else {
+                content
+                    .aspectRatio(contentMode: .fit) // Default before loading
+                    .frame(width: UIScreen.main.bounds.width)
+            }
+        }
+        .onAppear {
+            if let url = URL(string: imageUrl) {
+                KingfisherManager.shared.retrieveImage(with: url) { result in
+                    DispatchQueue.main.async {
+                        switch result {
+                        case .success(let value):
+                            let image = value.image
+                            let aspectRatio = image.size.width / image.size.height
+                            isLandscape = aspectRatio > 1
+                        case .failure:
+                            isLandscape = nil
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 
 struct ChatIdentifier: Identifiable {
     var id: String
@@ -337,8 +380,7 @@ struct Feed: View {
                                             
                                             KFImage(URL(string: post.imageUrl))
                                                 .resizable()
-                                                .aspectRatio(contentMode: .fit)
-                                                .frame(maxWidth: UIScreen.main.bounds.width - 20)
+                                                .modifier(ConditionalFrameModifier(imageUrl: post.imageUrl)) // Apply fix dynamically
                                                 .gesture(
                                                     ExclusiveGesture(
                                                         TapGesture(count: 2).onEnded {
@@ -417,6 +459,7 @@ struct Feed: View {
                                                     .foregroundColor(.gray)
                                             }
                                         }
+                                        .frame(maxWidth: .infinity) // Ensures full width
 
                                         Text("Location: \(post.locationName)")
                                             .font(.caption)
@@ -424,8 +467,7 @@ struct Feed: View {
 
                                         KFImage(URL(string: post.imageUrl))
                                             .resizable()
-                                            .aspectRatio(contentMode: .fit)
-                                            .frame(maxWidth: UIScreen.main.bounds.width - 20)
+                                            .modifier(ConditionalFrameModifier(imageUrl: post.imageUrl)) // Apply fix dynamically
                                             .gesture(
                                                 ExclusiveGesture(
                                                     TapGesture(count: 2).onEnded {
@@ -457,6 +499,7 @@ struct Feed: View {
                                             }
                                         }
                                     }
+                                    .frame(maxWidth: .infinity, alignment: .leading) // Ensures VStack does not restrict width
                                     .padding(.horizontal) // Retain horizontal padding for consistent spacing
                                     .padding(.vertical, 5) // Retain vertical padding for spacing between posts
                                     .background(Color.black) // Maintain dark theme
