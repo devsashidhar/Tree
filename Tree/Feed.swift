@@ -739,7 +739,7 @@ struct Feed: View {
                 self.posts = [] // Clear feed if no valid posts remain
             } else {
                 print("[Info] Showing filtered cached posts.")
-                self.posts = filteredPosts
+                self.posts = filteredPosts.shuffled()
             }
 
             self.isLoading = false
