@@ -567,6 +567,9 @@ struct Feed: View {
             
             viewModel.listenForFollowerRemoval() // Register observer
             
+            
+            NotificationCenter.default.removeObserver(self, name: Notification.Name("FeedShouldRefresh"), object: nil)
+            
             NotificationCenter.default.addObserver(forName: Notification.Name("FeedShouldRefresh"), object: nil, queue: .main) { _ in
                 print("[Debug] Received FeedShouldRefresh notification. Reloading Feed...")
                 loadFeed()
@@ -579,11 +582,13 @@ struct Feed: View {
                 print("[Debug] Reloading Feed due to app restart...")
                 loadFeed()
                 UserDefaults.standard.set(false, forKey: "firstLaunch") // ✅ Reset flag after loading
-            } else {
+            } else if posts.isEmpty {  // ✅ Only refresh if there are no posts in memory
                 print("[Debug] Keeping current Feed, falling back to cached posts...")
                 fetchFollowing { following in
-                    fallbackToCachedPreviouslyViewedPosts(following: following) // ✅ Pass following list
+                    fallbackToCachedPreviouslyViewedPosts(following: following)
                 }
+            } else {
+                print("[Debug] Feed already loaded. Skipping refresh.")
             }
             
         }
