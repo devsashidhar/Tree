@@ -1,12 +1,24 @@
+import os
+from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials, messaging, firestore
 from flask import Flask, request, jsonify
 
+# Load environment variables from .env
+load_dotenv()
+
+# Get the service account key path from .env
+service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+
 # Initialize Firebase Admin SDK
-print("[Debug] Initializing Firebase Admin SDK...")
-cred = credentials.Certificate("serviceAccountKey.json")
-firebase_admin.initialize_app(cred)
-print("[Debug] Firebase Admin SDK initialized.")
+if service_account_path:
+    print("[Debug] Using Firebase key from environment variable.")
+    cred = credentials.Certificate(service_account_path)
+    firebase_admin.initialize_app(cred)
+    print("[Debug] Firebase Admin SDK initialized.")
+else:
+    print("[Error] GOOGLE_APPLICATION_CREDENTIALS is not set. Exiting...")
+    exit(1)
 
 db = firestore.client()
 
